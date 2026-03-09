@@ -28,6 +28,7 @@ public class FlushPolicy {
     }
 
     public boolean shouldFlush(int bufferSize, Duration elapsed) {
+        if (bufferSize == 0) return false;
         if (limit > 0 && bufferSize >= limit) return true;
         return interval != null && !elapsed.minus(interval).isNegative();
     }

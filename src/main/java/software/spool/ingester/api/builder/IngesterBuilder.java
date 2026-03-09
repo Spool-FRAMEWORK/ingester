@@ -1,11 +1,13 @@
 package software.spool.ingester.api.builder;
 
+import software.spool.core.port.*;
+import software.spool.core.port.decorator.SafeEventBusEmitter;
+import software.spool.core.port.decorator.SafeEventBusListener;
+import software.spool.core.port.decorator.SafeInboxUpdater;
 import software.spool.ingester.api.Ingester;
 import software.spool.ingester.api.port.DataLakeWriter;
-import software.spool.ingester.api.port.EventBusEmitter;
-import software.spool.ingester.api.port.EventBusListener;
-import software.spool.ingester.api.port.InboxUpdater;
 import software.spool.ingester.internal.control.ItemPublishedHandler;
+import software.spool.ingester.internal.decorator.SafeDataLakeWriter;
 import software.spool.ingester.internal.utils.Buffer;
 import software.spool.ingester.internal.utils.FlushPolicy;
 
@@ -24,28 +26,28 @@ public class IngesterBuilder {
         return new IngesterBuilder();
     }
 
-    protected IngesterBuilder flushWith(FlushPolicy flushPolicy) {
+    public IngesterBuilder flushWith(FlushPolicy flushPolicy) {
         this.flushPolicy = flushPolicy;
         return this;
     }
 
     public IngesterBuilder from(EventBusListener listener) {
-        this.listener = listener;
+        this.listener = SafeEventBusListener.of(listener);
         return this;
     }
 
     public IngesterBuilder storesWith(DataLakeWriter writer) {
-        this.writer = writer;
+        this.writer = SafeDataLakeWriter.of(writer);
         return this;
     }
 
     public IngesterBuilder updatedWith(InboxUpdater updater) {
-        this.updater = updater;
+        this.updater = SafeInboxUpdater.of(updater);
         return this;
     }
 
     public IngesterBuilder on(EventBusEmitter emitter) {
-        this.emitter = emitter;
+        this.emitter = SafeEventBusEmitter.of(emitter);
         return this;
     }
 

@@ -1,7 +1,9 @@
 package software.spool.ingester.api.port;
 
-import java.util.stream.Stream;
+import software.spool.core.model.Event;
+
+import java.util.Collection;
 
 public interface DataLakeWriter {
-    void write(Stream<String> items);
+    <E extends Event> void write(Collection<E> items);
 }

@@ -17,15 +17,16 @@ public class Buffer {
         this.policy = policy;
     }
 
-    public void insert(ItemPublished item) {
+    public synchronized void insert(ItemPublished item) {
         items.add(item);
     }
 
-    public boolean shouldFlush() {
+    public synchronized boolean shouldFlush() {
         return policy.shouldFlush(items.size(), Duration.between(lastFlush, Instant.now()));
     }
 
-    public Collection<ItemPublished> flush() {
+    public synchronized Collection<ItemPublished> flush() {
+        if (items.isEmpty()) return List.of();
         List<ItemPublished> snapshot = List.copyOf(items);
         items.clear();
         lastFlush = Instant.now();

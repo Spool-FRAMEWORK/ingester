@@ -9,10 +9,37 @@ import software.spool.ingester.api.port.DataLakeWriter;
 import software.spool.ingester.internal.control.ItemPublishedHandler;
 import software.spool.ingester.internal.decorator.SafeDataLakeWriter;
 import software.spool.ingester.internal.utils.Buffer;
+import software.spool.ingester.internal.utils.FlushCoordinator;
 import software.spool.ingester.internal.utils.FlushPolicy;
 
 import java.util.Objects;
 
+/**
+ * Fluent builder that configures and assembles an {@link Ingester} instance.
+ *
+ * <p>
+ * Instances are normally obtained via
+ * {@link IngesterBuilderFactory#reactive()} or
+ * {@link IngesterBuilderFactory#buffered()} and then further customised
+ * before calling {@link #create()}.
+ * </p>
+ *
+ * <p>
+ * All ports passed to setter methods are automatically wrapped in their
+ * corresponding {@code Safe*} decorators to normalise unchecked exceptions
+ * into typed {@link software.spool.core.exception.SpoolException} subclasses.
+ * </p>
+ *
+ * <pre>{@code
+ * Ingester ingester = IngesterBuilderFactory.buffered()
+ *         .from(eventBusListener)
+ *         .storesWith(dataLakeWriter)
+ *         .updatedWith(inboxUpdater)
+ *         .on(eventBusEmitter)
+ *         .flushWith(FlushPolicy.every(Duration.ofSeconds(10)))
+ *         .create();
+ * }</pre>
+ */
 public class IngesterBuilder {
     private FlushPolicy flushPolicy;
     private EventBusListener listener;
@@ -20,46 +47,77 @@ public class IngesterBuilder {
     private InboxUpdater updater;
     private EventBusEmitter emitter;
 
-    private IngesterBuilder() {}
-
-    public static IngesterBuilder create() {
-        return new IngesterBuilder();
+    IngesterBuilder() {
     }
 
+    /**
+     * Sets the {@link FlushPolicy} that controls when the buffer is flushed.
+     *
+     * @param flushPolicy the flush policy to use; must not be {@code null}
+     * @return this builder for chaining
+     */
     public IngesterBuilder flushWith(FlushPolicy flushPolicy) {
         this.flushPolicy = flushPolicy;
         return this;
     }
 
+    /**
+     * Sets the {@link EventBusListener} that the ingester subscribes to.
+     *
+     * @param listener the event bus listener; must not be {@code null}
+     * @return this builder for chaining
+     */
     public IngesterBuilder from(EventBusListener listener) {
         this.listener = SafeEventBusListener.of(listener);
         return this;
     }
 
+    /**
+     * Sets the {@link DataLakeWriter} that persists flushed batches.
+     *
+     * @param writer the data lake writer; must not be {@code null}
+     * @return this builder for chaining
+     */
     public IngesterBuilder storesWith(DataLakeWriter writer) {
         this.writer = SafeDataLakeWriter.of(writer);
         return this;
     }
 
+    /**
+     * Sets the {@link InboxUpdater} used to mark inbox items as persisted.
+     *
+     * @param updater the inbox updater; must not be {@code null}
+     * @return this builder for chaining
+     */
     public IngesterBuilder updatedWith(InboxUpdater updater) {
         this.updater = SafeInboxUpdater.of(updater);
         return this;
     }
 
+    /**
+     * Sets the {@link EventBusEmitter} used to emit {@code ItemPersisted} events.
+     *
+     * @param emitter the event bus emitter; must not be {@code null}
+     * @return this builder for chaining
+     */
     public IngesterBuilder on(EventBusEmitter emitter) {
         this.emitter = SafeEventBusEmitter.of(emitter);
         return this;
     }
 
-    public Ingester build() {
+    /**
+     * Builds and returns the configured {@link Ingester}.
+     *
+     * @return a new {@code Ingester} ready to start ingestion
+     * @throws NullPointerException if any required port has not been set
+     */
+    public Ingester create() {
         Objects.requireNonNull(flushPolicy);
         Objects.requireNonNull(listener);
         Objects.requireNonNull(writer);
         Objects.requireNonNull(updater);
         Objects.requireNonNull(emitter);
-        return new Ingester(
-                listener,
-                new ItemPublishedHandler(writer, updater, emitter),
-                new Buffer(flushPolicy));
+        return new Ingester(listener,
+                new FlushCoordinator(new Buffer(), flushPolicy, new ItemPublishedHandler(writer, updater, emitter)));
     }
 }

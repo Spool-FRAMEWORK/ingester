@@ -7,6 +7,16 @@ import software.spool.ingester.internal.exception.DataLakeWriteException;
 
 import java.util.Collection;
 
+/**
+ * Decorator for {@link DataLakeWriter} that normalises unchecked exceptions
+ * into typed {@link DataLakeWriteException} instances.
+ *
+ * <p>
+ * If the delegate throws a {@link SpoolException} subclass, it is re-thrown
+ * as-is. Any other {@link Exception} is wrapped in a new
+ * {@link DataLakeWriteException}.
+ * </p>
+ */
 public class SafeDataLakeWriter implements DataLakeWriter {
     private final DataLakeWriter writer;
 
@@ -14,6 +24,12 @@ public class SafeDataLakeWriter implements DataLakeWriter {
         this.writer = writer;
     }
 
+    /**
+     * Creates a new {@code SafeDataLakeWriter} wrapping the given delegate.
+     *
+     * @param writer the writer to wrap; must not be {@code null}
+     * @return a new {@code SafeDataLakeWriter} instance
+     */
     public static DataLakeWriter of(DataLakeWriter writer) {
         return new SafeDataLakeWriter(writer);
     }
@@ -22,8 +38,9 @@ public class SafeDataLakeWriter implements DataLakeWriter {
     public <E extends Event> void write(Collection<E> items) {
         try {
             writer.write(items);
-        } catch (SpoolException e) { throw e; }
-        catch (Exception e) {
+        } catch (SpoolException e) {
+            throw e;
+        } catch (Exception e) {
             throw new DataLakeWriteException(e.getMessage(), e);
         }
     }

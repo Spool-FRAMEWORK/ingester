@@ -51,7 +51,7 @@
         <snapshotRepository>
             <id>github</id>
             <name>Spool-FRAMEWORK GitHub Packages</name>
-            <url>https://maven.pkg.github.com/Spool-FRAMEWORK/template</url>
+            <url>https://maven.pkg.github.com/Spool-FRAMEWORK/ingester</url>
         </snapshotRepository>
     </distributionManagement>
 

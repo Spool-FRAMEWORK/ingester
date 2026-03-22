@@ -6,7 +6,7 @@
 
     <groupId>io.github.spool-framework</groupId>
     <artifactId>ingester</artifactId>
-    <version>1.0.1-SNAPSHOT</version>
+    <version>1.0.2-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>${project.groupId}:${project.artifactId}</name>
@@ -135,7 +135,7 @@
         <dependency>
             <groupId>io.github.spool-framework</groupId>
             <artifactId>core</artifactId>
-            <version>1.0.15-SNAPSHOT</version>
+            <version>1.0.18-SNAPSHOT</version>
         </dependency>
     </dependencies>
 </project>

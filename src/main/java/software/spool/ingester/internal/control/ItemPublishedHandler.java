@@ -5,6 +5,7 @@ import software.spool.core.exception.SpoolException;
 import software.spool.core.model.InboxItemStatus;
 import software.spool.core.model.ItemPersisted;
 import software.spool.core.model.ItemPublished;
+import software.spool.core.model.PartitionKey;
 import software.spool.core.port.EventBusEmitter;
 import software.spool.core.port.InboxUpdater;
 import software.spool.ingester.api.port.DataLakeWriter;
@@ -54,7 +55,11 @@ public class ItemPublishedHandler implements Handler<Collection<ItemPublished>> 
         dataLakeWriter.write(items);
         items.forEach(item -> {
             updater.update(item.idempotencyKey(), InboxItemStatus.PERSISTED);
-            emitter.emit(ItemPersisted.builder().from(item).build());
+            emitter.emit(ItemPersisted.builder().from(item).partitionKey(buildPartitionKey(item)).build());
         });
+    }
+
+    private PartitionKey buildPartitionKey(ItemPublished item) {
+        return PartitionKey.of(item.partitionKeySchema()).from(item.payload());
     }
 }

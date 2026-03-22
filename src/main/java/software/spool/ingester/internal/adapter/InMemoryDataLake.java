@@ -1,10 +1,12 @@
 package software.spool.ingester.internal.adapter;
 
 import software.spool.core.model.Event;
+import software.spool.core.model.ItemPublished;
+import software.spool.core.model.PartitionKey;
 import software.spool.ingester.api.port.DataLakeWriter;
 
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -22,14 +24,27 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * </p>
  */
 public class InMemoryDataLake implements DataLakeWriter {
-    private final CopyOnWriteArrayList<Event> store = new CopyOnWriteArrayList<>();
+
+    private final Map<PartitionKey, List<Event>> store = new ConcurrentHashMap<>();
 
     @Override
-    public <E extends Event> void write(Collection<E> items) {
-        store.addAll(items);
+    public void write(Collection<ItemPublished> items) {
+        items.forEach(event ->
+                store.computeIfAbsent(
+                        PartitionKey.of(event.partitionKeySchema()).from(event.payload()),
+                        k -> Collections.synchronizedList(new ArrayList<>())
+                ).add(event)
+        );
     }
 
     public List<Event> findAll() {
-        return List.copyOf(store);
+        return store.values().stream()
+                .flatMap(List::stream)
+                .toList();
+    }
+
+    public List<Event> findByPartitionKey(PartitionKey key) {
+        return List.copyOf(store.getOrDefault(key, List.of()));
     }
 }
+

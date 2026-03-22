@@ -1,6 +1,6 @@
 package software.spool.ingester.api.port;
 
-import software.spool.core.model.Event;
+import software.spool.core.model.ItemPublished;
 
 import java.util.Collection;
 
@@ -22,7 +22,6 @@ public interface DataLakeWriter {
     /**
      * Writes a batch of events to the data lake.
      *
-     * @param <E>   the event type
      * @param items the events to persist; never {@code null} or empty
      * @throws software.spool.ingester.internal.exception.DataLakeWriteException
      *                                                                           if
@@ -33,5 +32,5 @@ public interface DataLakeWriter {
      *                                                                           be
      *                                                                           persisted
      */
-    <E extends Event> void write(Collection<E> items);
+    void write(Collection<ItemPublished> items);
 }

@@ -7,10 +7,12 @@ import software.spool.core.port.decorator.SafeInboxUpdater;
 import software.spool.ingester.api.Ingester;
 import software.spool.ingester.api.port.DataLakeWriter;
 import software.spool.ingester.internal.control.ItemPublishedHandler;
+import software.spool.ingester.internal.control.ItemValidator;
 import software.spool.ingester.internal.decorator.SafeDataLakeWriter;
 import software.spool.ingester.internal.utils.Buffer;
 import software.spool.ingester.internal.utils.FlushCoordinator;
 import software.spool.ingester.internal.utils.FlushPolicy;
+import software.spool.validator.engine.ValidatorRegistry;
 
 import java.util.Objects;
 
@@ -118,6 +120,6 @@ public class IngesterBuilder {
         Objects.requireNonNull(updater);
         Objects.requireNonNull(emitter);
         return new Ingester(listener,
-                new FlushCoordinator(new Buffer(), flushPolicy, new ItemPublishedHandler(writer, updater, emitter)));
+                new FlushCoordinator(new Buffer(), flushPolicy, new ItemPublishedHandler(writer, updater, emitter, new ItemValidator(new ValidatorRegistry()))));
     }
 }

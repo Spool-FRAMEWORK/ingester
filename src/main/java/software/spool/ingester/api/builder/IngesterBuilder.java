@@ -4,8 +4,10 @@ import software.spool.core.port.*;
 import software.spool.core.port.decorator.SafeEventBusEmitter;
 import software.spool.core.port.decorator.SafeEventBusListener;
 import software.spool.core.port.decorator.SafeInboxUpdater;
+import software.spool.core.utils.PollingConfiguration;
 import software.spool.ingester.api.Ingester;
 import software.spool.ingester.api.port.DataLakeWriter;
+import software.spool.ingester.api.port.QuarantineStore;
 import software.spool.ingester.internal.control.ItemPublishedHandler;
 import software.spool.ingester.internal.control.ItemValidator;
 import software.spool.ingester.internal.decorator.SafeDataLakeWriter;
@@ -14,7 +16,7 @@ import software.spool.ingester.internal.utils.FlushCoordinator;
 import software.spool.ingester.internal.utils.FlushPolicy;
 import software.spool.validator.engine.ValidatorRegistry;
 
-import java.util.Objects;
+import java.time.Duration;
 
 /**
  * Fluent builder that configures and assembles an {@link Ingester} instance.
@@ -43,23 +45,25 @@ import java.util.Objects;
  * }</pre>
  */
 public class IngesterBuilder {
-    private FlushPolicy flushPolicy;
     private EventBusListener listener;
     private DataLakeWriter writer;
     private InboxUpdater updater;
     private EventBusEmitter emitter;
+    private FlushPolicy flushPolicy;
+    private QuarantineStore quarantineStore;
+    private final PollingConfiguration pollingConfiguration;
 
     IngesterBuilder() {
+        this.pollingConfiguration = PollingConfiguration.every(Duration.ofMillis(100));
     }
 
-    /**
-     * Sets the {@link FlushPolicy} that controls when the buffer is flushed.
-     *
-     * @param flushPolicy the flush policy to use; must not be {@code null}
-     * @return this builder for chaining
-     */
-    public IngesterBuilder flushWith(FlushPolicy flushPolicy) {
+    public IngesterBuilder flushPolicy(FlushPolicy flushPolicy) {
         this.flushPolicy = flushPolicy;
+        return this;
+    }
+
+    public IngesterBuilder quarantineStore(QuarantineStore store) {
+        this.quarantineStore = store;
         return this;
     }
 
@@ -114,12 +118,9 @@ public class IngesterBuilder {
      * @throws NullPointerException if any required port has not been set
      */
     public Ingester create() {
-        Objects.requireNonNull(flushPolicy);
-        Objects.requireNonNull(listener);
-        Objects.requireNonNull(writer);
-        Objects.requireNonNull(updater);
-        Objects.requireNonNull(emitter);
-        return new Ingester(listener,
-                new FlushCoordinator(new Buffer(), flushPolicy, new ItemPublishedHandler(writer, updater, emitter, new ItemValidator(new ValidatorRegistry()))));
+        ItemValidator validator = new ItemValidator(new ValidatorRegistry());
+        ItemPublishedHandler handler = new ItemPublishedHandler(writer, updater, emitter, validator, quarantineStore);
+        FlushCoordinator flushCoordinator = new FlushCoordinator(new Buffer(), flushPolicy, handler);
+        return new Ingester(listener, pollingConfiguration, flushCoordinator);
     }
 }

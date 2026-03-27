@@ -6,6 +6,9 @@ import software.spool.core.model.ItemPublished;
 import software.spool.validator.api.ValidationResult;
 import software.spool.validator.engine.ValidatorRegistry;
 
+import java.util.ArrayList;
+import java.util.Objects;
+
 public class ItemValidator {
     private final ValidatorRegistry registry;
 
@@ -15,6 +18,7 @@ public class ItemValidator {
 
     public ValidationResult validate(ItemPublished item) {
         try {
+            if (Objects.isNull(item.metadata().get(EventMetadataKey.TYPE))) return ValidationResult.of(new ArrayList<>());
             Class<?> type = Class.forName(
                     item.metadata().get(EventMetadataKey.TYPE),
                     true,

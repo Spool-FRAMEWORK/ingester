@@ -2,12 +2,9 @@ package software.spool.ingester.api;
 
 import software.spool.core.model.ItemPublished;
 import software.spool.core.port.EventBusListener;
-import software.spool.core.port.Subscription;
+import software.spool.core.utils.CancellationToken;
+import software.spool.core.utils.PollingConfiguration;
 import software.spool.ingester.internal.utils.FlushCoordinator;
-
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Main API entry point for the ingestion lifecycle.
@@ -43,23 +40,24 @@ import java.util.concurrent.TimeUnit;
 public class Ingester {
     private final EventBusListener listener;
     private final FlushCoordinator coordinator;
-    private Subscription subscription;
-    private ScheduledExecutorService scheduler;
+    private volatile CancellationToken token;
+    private final PollingConfiguration pollingConfiguration;
 
     /**
      * Creates a new {@code Ingester} with the given event bus listener and flush
      * coordinator.
      *
-     * @param listener    the event bus listener to subscribe for
-     *                    {@link ItemPublished} events;
-     *                    must not be {@code null}
-     * @param coordinator the flush coordinator that manages buffering and flushing;
-     *                    must not be {@code null}
+     * @param listener             the event bus listener to subscribe for
+     *                             {@link ItemPublished} events;
+     *                             must not be {@code null}
+     * @param coordinator          the flush coordinator that manages buffering and flushing;
+     *                             must not be {@code null}
      */
-    public Ingester(EventBusListener listener, FlushCoordinator coordinator) {
+    public Ingester(EventBusListener listener, PollingConfiguration pollingConfiguration, FlushCoordinator coordinator) {
         this.listener = listener;
         this.coordinator = coordinator;
-        this.subscription = Subscription.NULL;
+        this.pollingConfiguration = pollingConfiguration;
+        this.token = CancellationToken.NONE;
     }
 
     /**
@@ -72,12 +70,17 @@ public class Ingester {
      * </p>
      */
     public void startIngestion() {
-        if (subscription != Subscription.NULL)
-            return;
-        subscription = listener.on(ItemPublished.class, coordinator::submit);
-        scheduler = Executors.newSingleThreadScheduledExecutor();
-        scheduler.scheduleAtFixedRate(coordinator::flushIfNeeded,
-                200, 200, TimeUnit.MILLISECONDS);
+        if (token.isActive()) return;
+        token = CancellationToken.create();
+        listener.on(ItemPublished.class, i -> {
+            if (token.isCancelled()) return;
+            coordinator.submit(i);
+        });
+        pollingConfiguration.scheduler().schedule(
+                coordinator::flushIfNeeded,
+                pollingConfiguration.policy(),
+                token
+        );
     }
 
     /**
@@ -89,10 +92,8 @@ public class Ingester {
      * </p>
      */
     public void stopIngestion() {
-        if (subscription == Subscription.NULL)
-            return;
-        subscription.cancel();
-        subscription = Subscription.NULL;
-        scheduler.shutdown();
+        if (token.isCancelled()) return;
+        token.cancel();
+        token = CancellationToken.NONE;
     }
 }

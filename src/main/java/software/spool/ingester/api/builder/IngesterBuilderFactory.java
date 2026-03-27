@@ -41,7 +41,7 @@ public class IngesterBuilderFactory {
      * @return a new {@link IngesterBuilder} with an immediate flush policy
      */
     public static IngesterBuilder reactive() {
-        return new IngesterBuilder().flushWith(FlushPolicy.immediate());
+        return new IngesterBuilder().flushPolicy(FlushPolicy.immediate());
     }
 
     /**
@@ -50,12 +50,11 @@ public class IngesterBuilderFactory {
      * <p>
      * Events are accumulated and flushed when the buffer reaches 100 items
      * or every 60 seconds, whichever comes first. The flush policy can be
-     * overridden via {@link IngesterBuilder#flushWith(FlushPolicy)}.
      * </p>
      *
      * @return a new {@link IngesterBuilder} with a buffered flush policy
      */
     public static IngesterBuilder buffered() {
-        return new IngesterBuilder().flushWith(FlushPolicy.whenReaches(100).orEvery(Duration.ofSeconds(60)));
+        return new IngesterBuilder().flushPolicy(FlushPolicy.whenReaches(100).orEvery(Duration.ofSeconds(60)));
     }
 }

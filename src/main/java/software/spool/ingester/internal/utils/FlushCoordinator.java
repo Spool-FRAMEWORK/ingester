@@ -1,7 +1,7 @@
 package software.spool.ingester.internal.utils;
 
-import software.spool.core.control.Handler;
-import software.spool.core.model.ItemPublished;
+import software.spool.core.model.event.ItemPublished;
+import software.spool.core.port.bus.Handler;
 
 import java.time.Duration;
 import java.time.Instant;

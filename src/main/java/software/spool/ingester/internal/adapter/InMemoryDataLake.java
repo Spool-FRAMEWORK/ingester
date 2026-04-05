@@ -1,8 +1,8 @@
 package software.spool.ingester.internal.adapter;
 
 import software.spool.core.model.Event;
-import software.spool.core.model.ItemPublished;
-import software.spool.core.model.PartitionKey;
+import software.spool.core.model.event.ItemPublished;
+import software.spool.core.model.vo.PartitionKey;
 import software.spool.ingester.api.port.DataLakeWriter;
 
 import java.util.*;

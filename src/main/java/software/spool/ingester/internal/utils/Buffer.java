@@ -1,6 +1,6 @@
 package software.spool.ingester.internal.utils;
 
-import software.spool.core.model.ItemPublished;
+import software.spool.core.model.event.ItemPublished;
 
 import java.util.ArrayList;
 import java.util.Collection;

@@ -1,6 +1,6 @@
 package software.spool.ingester.api.port;
 
-import software.spool.core.model.ItemPublished;
+import software.spool.core.model.event.ItemPublished;
 
 import java.util.Collection;
 

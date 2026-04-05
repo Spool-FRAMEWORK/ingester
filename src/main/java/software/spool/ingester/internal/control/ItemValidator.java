@@ -1,8 +1,8 @@
 package software.spool.ingester.internal.control;
 
-import software.spool.core.infrastructure.adapter.PayloadDeserializerFactory;
-import software.spool.core.model.EventMetadataKey;
-import software.spool.core.model.ItemPublished;
+import software.spool.core.adapter.jackson.PayloadDeserializerFactory;
+import software.spool.core.model.event.ItemPublished;
+import software.spool.core.model.vo.EventMetadataKey;
 import software.spool.validator.api.ValidationResult;
 import software.spool.validator.engine.ValidatorRegistry;
 
@@ -24,7 +24,7 @@ public class ItemValidator {
                     true,
                     Thread.currentThread().getContextClassLoader()
             );
-            Object payload = PayloadDeserializerFactory.jsonAs(type).deserialize(item.payload());
+            Object payload = PayloadDeserializerFactory.json().as(type).deserialize(item.payload());
             return registry.validateAll(payload);
         } catch (ClassNotFoundException e) {
             throw new RuntimeException("Unknown payload type for item: " + item.idempotencyKey(), e);

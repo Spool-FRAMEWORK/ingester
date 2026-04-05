@@ -1,10 +1,15 @@
 package software.spool.ingester.internal.control;
 
-import software.spool.core.control.Handler;
 import software.spool.core.exception.SpoolException;
 import software.spool.core.model.*;
-import software.spool.core.port.EventBusEmitter;
-import software.spool.core.port.InboxUpdater;
+import software.spool.core.model.event.ItemPersisted;
+import software.spool.core.model.event.ItemPublished;
+import software.spool.core.model.failure.ItemQuarantined;
+import software.spool.core.model.vo.PartitionKey;
+import software.spool.core.port.bus.EventBusEmitter;
+import software.spool.core.port.bus.Handler;
+import software.spool.core.port.inbox.InboxUpdater;
+import software.spool.core.utils.routing.ErrorRouter;
 import software.spool.ingester.api.port.DataLakeWriter;
 import software.spool.ingester.api.port.QuarantineStore;
 import software.spool.ingester.api.port.QuarantinedRecord;
@@ -32,14 +37,16 @@ public class ItemPublishedHandler implements Handler<Collection<ItemPublished>> 
     private final EventBusEmitter emitter;
     private final ItemValidator validator;
     private final QuarantineStore quarantineStore;
+    private final ErrorRouter errorRouter;
 
     public ItemPublishedHandler(DataLakeWriter dataLakeWriter, InboxUpdater updater,
-                                EventBusEmitter emitter, ItemValidator validator, QuarantineStore quarantineStore) {
+                                EventBusEmitter emitter, ItemValidator validator, QuarantineStore quarantineStore, ErrorRouter errorRouter) {
         this.dataLakeWriter = dataLakeWriter;
         this.updater = updater;
         this.emitter = emitter;
         this.validator = validator;
         this.quarantineStore = quarantineStore;
+        this.errorRouter = errorRouter;
     }
 
     @Override
@@ -60,11 +67,15 @@ public class ItemPublishedHandler implements Handler<Collection<ItemPublished>> 
     }
 
     private void persistAndEmit(ItemPublished item) {
-        updater.update(item.idempotencyKey(), InboxItemStatus.PERSISTED);
-        emitter.emit(ItemPersisted.builder()
-                .from(item)
-                .partitionKey(buildPartitionKey(item))
-                .build());
+        try {
+            updater.update(item.idempotencyKey(), InboxItemStatus.PERSISTED);
+            emitter.emit(ItemPersisted.builder()
+                    .from(item)
+                    .partitionKey(buildPartitionKey(item))
+                    .build());
+        } catch (Exception e) {
+            errorRouter.dispatch(e);
+        }
     }
 
     private void quarantine(ItemPublished item, ValidationResult result) {

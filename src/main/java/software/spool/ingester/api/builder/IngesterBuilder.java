@@ -1,13 +1,17 @@
 package software.spool.ingester.api.builder;
 
-import software.spool.core.port.*;
+import software.spool.core.port.bus.EventBusEmitter;
+import software.spool.core.port.bus.EventBusListener;
 import software.spool.core.port.decorator.SafeEventBusEmitter;
 import software.spool.core.port.decorator.SafeEventBusListener;
 import software.spool.core.port.decorator.SafeInboxUpdater;
-import software.spool.core.utils.PollingConfiguration;
+import software.spool.core.port.inbox.InboxUpdater;
+import software.spool.core.port.watchdog.ModuleHeartBeat;
+import software.spool.core.utils.polling.PollingConfiguration;
 import software.spool.ingester.api.Ingester;
 import software.spool.ingester.api.port.DataLakeWriter;
 import software.spool.ingester.api.port.QuarantineStore;
+import software.spool.ingester.api.utils.IngesterErrorRouter;
 import software.spool.ingester.internal.control.ItemPublishedHandler;
 import software.spool.ingester.internal.control.ItemValidator;
 import software.spool.ingester.internal.decorator.SafeDataLakeWriter;
@@ -45,6 +49,7 @@ import java.time.Duration;
  * }</pre>
  */
 public class IngesterBuilder {
+    private final ModuleHeartBeat heartBeat;
     private EventBusListener listener;
     private DataLakeWriter writer;
     private InboxUpdater updater;
@@ -53,7 +58,8 @@ public class IngesterBuilder {
     private QuarantineStore quarantineStore;
     private final PollingConfiguration pollingConfiguration;
 
-    IngesterBuilder() {
+    IngesterBuilder(ModuleHeartBeat heartBeat) {
+        this.heartBeat = heartBeat;
         this.pollingConfiguration = PollingConfiguration.every(Duration.ofMillis(100));
     }
 
@@ -119,8 +125,8 @@ public class IngesterBuilder {
      */
     public Ingester create() {
         ItemValidator validator = new ItemValidator(new ValidatorRegistry());
-        ItemPublishedHandler handler = new ItemPublishedHandler(writer, updater, emitter, validator, quarantineStore);
+        ItemPublishedHandler handler = new ItemPublishedHandler(writer, updater, emitter, validator, quarantineStore, IngesterErrorRouter.defaults(emitter));
         FlushCoordinator flushCoordinator = new FlushCoordinator(new Buffer(), flushPolicy, handler);
-        return new Ingester(listener, pollingConfiguration, flushCoordinator);
+        return new Ingester(listener, pollingConfiguration, flushCoordinator, heartBeat, IngesterErrorRouter.defaults(emitter));
     }
 }

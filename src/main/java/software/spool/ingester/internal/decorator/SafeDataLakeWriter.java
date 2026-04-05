@@ -1,7 +1,7 @@
 package software.spool.ingester.internal.decorator;
 
 import software.spool.core.exception.SpoolException;
-import software.spool.core.model.ItemPublished;
+import software.spool.core.model.event.ItemPublished;
 import software.spool.ingester.api.port.DataLakeWriter;
 import software.spool.ingester.internal.exception.DataLakeWriteException;
 
@@ -41,7 +41,6 @@ public class SafeDataLakeWriter implements DataLakeWriter {
         } catch (SpoolException e) {
             throw e;
         } catch (Exception e) {
-            e.printStackTrace();
             throw new DataLakeWriteException(e.getMessage(), e);
         }
     }

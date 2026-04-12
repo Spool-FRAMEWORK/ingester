@@ -5,6 +5,7 @@ import software.spool.core.model.*;
 import software.spool.core.model.event.ItemPersisted;
 import software.spool.core.model.event.ItemPublished;
 import software.spool.core.model.failure.ItemQuarantined;
+import software.spool.core.model.vo.IdempotencyKey;
 import software.spool.core.model.vo.PartitionKey;
 import software.spool.core.port.bus.EventBusEmitter;
 import software.spool.core.port.bus.Handler;
@@ -19,6 +20,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Handler that processes a batch of {@link ItemPublished} events by writing
@@ -52,8 +56,8 @@ public class ItemPublishedHandler implements Handler<Collection<ItemPublished>> 
     @Override
     public void handle(Collection<ItemPublished> items) throws SpoolException {
         List<ItemPublished> valid = partition(items);
-        dataLakeWriter.write(valid);
-        valid.forEach(this::persistAndEmit);
+        Set<IdempotencyKey> written = dataLakeWriter.write(valid).collect(Collectors.toSet());
+        valid.stream().filter(i -> written.contains(i.idempotencyKey())).forEach(this::persistAndEmit);
     }
 
     private List<ItemPublished> partition(Collection<ItemPublished> items) {
@@ -71,7 +75,7 @@ public class ItemPublishedHandler implements Handler<Collection<ItemPublished>> 
             updater.update(item.idempotencyKey(), InboxItemStatus.PERSISTED);
             emitter.emit(ItemPersisted.builder()
                     .from(item)
-                    .partitionKey(buildPartitionKey(item))
+                    .partitionKey(PartitionKey.of(item.partitionKeySchema()).from(item.payload()))
                     .build());
         } catch (Exception e) {
             errorRouter.dispatch(e);
@@ -87,10 +91,6 @@ public class ItemPublishedHandler implements Handler<Collection<ItemPublished>> 
                 .from(item)
                 .violations(violations)
                 .build());
-    }
-
-    private PartitionKey buildPartitionKey(ItemPublished item) {
-        return PartitionKey.of(item.partitionKeySchema()).from(item.payload());
     }
 }
 

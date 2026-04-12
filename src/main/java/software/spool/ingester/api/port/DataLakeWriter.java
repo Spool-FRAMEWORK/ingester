@@ -1,8 +1,10 @@
 package software.spool.ingester.api.port;
 
 import software.spool.core.model.event.ItemPublished;
+import software.spool.core.model.vo.IdempotencyKey;
 
 import java.util.Collection;
+import java.util.stream.Stream;
 
 /**
  * Port for writing batches of events into the data lake.
@@ -32,5 +34,5 @@ public interface DataLakeWriter {
      *                                                                           be
      *                                                                           persisted
      */
-    void write(Collection<ItemPublished> items);
+    Stream<IdempotencyKey> write(Collection<ItemPublished> items);
 }

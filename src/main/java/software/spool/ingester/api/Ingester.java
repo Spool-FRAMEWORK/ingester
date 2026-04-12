@@ -88,11 +88,7 @@ public class Ingester implements SpoolModule {
         try {
             listener.on(ItemPublished.class, i -> {
                 if (token.isCancelled()) return;
-                try {
-                    coordinator.submit(i);
-                } catch (Exception e) {
-                    errorRouter.dispatch(e);
-                }
+                coordinator.submit(i);
             });
             pollingConfiguration.scheduler().schedule(
                     coordinator::flushIfNeeded,

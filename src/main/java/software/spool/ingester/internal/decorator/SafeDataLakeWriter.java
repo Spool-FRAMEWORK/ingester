@@ -2,10 +2,12 @@ package software.spool.ingester.internal.decorator;
 
 import software.spool.core.exception.SpoolException;
 import software.spool.core.model.event.ItemPublished;
+import software.spool.core.model.vo.IdempotencyKey;
 import software.spool.ingester.api.port.DataLakeWriter;
 import software.spool.ingester.internal.exception.DataLakeWriteException;
 
 import java.util.Collection;
+import java.util.stream.Stream;
 
 /**
  * Decorator for {@link DataLakeWriter} that normalises unchecked exceptions
@@ -35,9 +37,9 @@ public class SafeDataLakeWriter implements DataLakeWriter {
     }
 
     @Override
-    public void write(Collection<ItemPublished> items) {
+    public Stream<IdempotencyKey> write(Collection<ItemPublished> items) {
         try {
-            writer.write(items);
+            return writer.write(items);
         } catch (SpoolException e) {
             throw e;
         } catch (Exception e) {

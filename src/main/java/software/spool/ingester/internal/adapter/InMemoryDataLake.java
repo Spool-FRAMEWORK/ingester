@@ -2,12 +2,14 @@ package software.spool.ingester.internal.adapter;
 
 import software.spool.core.model.Event;
 import software.spool.core.model.event.ItemPublished;
+import software.spool.core.model.vo.IdempotencyKey;
 import software.spool.core.model.vo.PartitionKey;
 import software.spool.ingester.api.port.DataLakeWriter;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Stream;
 
 /**
  * In-memory implementation of {@link DataLakeWriter} intended for local
@@ -28,13 +30,14 @@ public class InMemoryDataLake implements DataLakeWriter {
     private final Map<PartitionKey, List<Event>> store = new ConcurrentHashMap<>();
 
     @Override
-    public void write(Collection<ItemPublished> items) {
+    public Stream<IdempotencyKey> write(Collection<ItemPublished> items) {
         items.forEach(event ->
                 store.computeIfAbsent(
                         PartitionKey.of(event.partitionKeySchema()).from(event.payload()),
                         k -> Collections.synchronizedList(new ArrayList<>())
                 ).add(event)
         );
+        return items.stream().map(ItemPublished::idempotencyKey);
     }
 
     public List<Event> findAll() {

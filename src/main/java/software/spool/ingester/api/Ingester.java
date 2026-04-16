@@ -4,7 +4,7 @@ import software.spool.core.model.event.ItemPublished;
 import software.spool.core.model.spool.SpoolModule;
 import software.spool.core.model.spool.SpoolNode;
 import software.spool.core.port.bus.EventBusListener;
-import software.spool.core.port.health.HealthPayload;
+import software.spool.core.port.health.ModuleHealthPayload;
 import software.spool.core.port.watchdog.ModuleHeartBeat;
 import software.spool.core.utils.polling.CancellationToken;
 import software.spool.core.utils.polling.PollingConfiguration;
@@ -118,7 +118,7 @@ public class Ingester implements SpoolModule {
     }
 
     @Override
-    public HealthPayload checkHealth() {
-        return token.isActive() ? HealthPayload.healthy(heartBeat.identity().moduleId()) : HealthPayload.degraded(heartBeat.identity().moduleId(), null);
+    public ModuleHealthPayload checkHealth() {
+        return token.isActive() ? ModuleHealthPayload.healthy(heartBeat.identity().moduleId()) : ModuleHealthPayload.degraded(heartBeat.identity().moduleId(), null);
     }
 }

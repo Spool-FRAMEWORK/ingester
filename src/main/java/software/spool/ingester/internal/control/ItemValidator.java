@@ -8,6 +8,7 @@ import software.spool.validator.engine.ValidatorRegistry;
 
 import java.util.ArrayList;
 import java.util.Objects;
+import java.util.Optional;
 
 public class ItemValidator {
     private final ValidatorRegistry registry;
@@ -17,18 +18,12 @@ public class ItemValidator {
     }
 
     public ValidationResult validate(ItemPublished item) {
-        try {
-            if (Objects.isNull(item.metadata().get(EventMetadataKey.TYPE))) return ValidationResult.of(new ArrayList<>());
-            Class<?> type = Class.forName(
-                    item.metadata().get(EventMetadataKey.TYPE),
-                    true,
-                    Thread.currentThread().getContextClassLoader()
-            );
-            Object payload = PayloadDeserializerFactory.json().as(type).deserialize(item.payload());
-            return registry.validateAll(payload);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException("Unknown payload type for item: " + item.idempotencyKey(), e);
-        }
+        Optional<Class<?>> payloadTypeOptional = registry.resolveClass(item.metadata().get(EventMetadataKey.SOURCE));
+        if (Objects.isNull(item.metadata().get(EventMetadataKey.TYPE)) || payloadTypeOptional.isEmpty())
+            return ValidationResult.of(new ArrayList<>());
+        Object payload = PayloadDeserializerFactory.json().as(payloadTypeOptional.get())
+                .deserialize(item.payload());
+        return registry.validateAll(item.metadata().get(EventMetadataKey.SOURCE), payload);
     }
 }
 

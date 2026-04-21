@@ -1,7 +1,8 @@
 package software.spool.ingester.internal.control;
 
+import software.spool.core.adapter.logging.LoggerFactory;
 import software.spool.core.exception.SpoolException;
-import software.spool.core.model.*;
+import software.spool.core.model.InboxItemStatus;
 import software.spool.core.model.event.ItemPersisted;
 import software.spool.core.model.event.ItemPublished;
 import software.spool.core.model.failure.ItemQuarantined;
@@ -22,7 +23,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Handler that processes a batch of {@link ItemPublished} events by writing
@@ -55,9 +55,13 @@ public class ItemPublishedHandler implements Handler<Collection<ItemPublished>> 
 
     @Override
     public void handle(Collection<ItemPublished> items) throws SpoolException {
-        List<ItemPublished> valid = partition(items);
-        Set<IdempotencyKey> written = dataLakeWriter.write(valid).collect(Collectors.toSet());
-        valid.stream().filter(i -> written.contains(i.idempotencyKey())).forEach(this::persistAndEmit);
+        try {
+            List<ItemPublished> valid = partition(items);
+            Set<IdempotencyKey> written = dataLakeWriter.write(valid).collect(Collectors.toSet());
+            valid.stream().filter(i -> written.contains(i.idempotencyKey())).forEach(this::persistAndEmit);
+        } catch (Exception e) {
+            errorRouter.dispatch(e);
+        }
     }
 
     private List<ItemPublished> partition(Collection<ItemPublished> items) {

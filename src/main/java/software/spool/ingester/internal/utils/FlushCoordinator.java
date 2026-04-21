@@ -64,17 +64,10 @@ public class FlushCoordinator {
      * </p>
      */
     public void flushIfNeeded() {
-        Duration elapsed = Duration.between(lastFlush, Instant.now());
-        if (policy.shouldFlush(buffer.size(), elapsed)) {
-            drainAndHandle();
-        }
-    }
-
-    private synchronized void drainAndHandle() {
+        if (!policy.shouldFlush(buffer.size(), Duration.between(lastFlush, Instant.now()))) return;
         Collection<ItemPublished> items = buffer.drain();
-        if (!items.isEmpty()) {
-            lastFlush = Instant.now();
-            handler.handle(items);
-        }
+        if (items.isEmpty()) return;
+        lastFlush = Instant.now();
+        handler.handle(items);
     }
 }

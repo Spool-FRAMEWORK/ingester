@@ -109,7 +109,7 @@ public class IngesterBuilder {
         return this;
     }
 
-    public IngesterBuilder readerWith(InboxReader reader) {
+    public IngesterBuilder readWith(InboxReader reader) {
         this.reader = SafeInboxReader.of(reader);
         return this;
     }

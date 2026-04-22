@@ -4,7 +4,9 @@ import software.spool.core.port.bus.EventBusEmitter;
 import software.spool.core.port.bus.EventBusListener;
 import software.spool.core.port.decorator.SafeEventBusEmitter;
 import software.spool.core.port.decorator.SafeEventBusListener;
+import software.spool.core.port.decorator.SafeInboxReader;
 import software.spool.core.port.decorator.SafeInboxUpdater;
+import software.spool.core.port.inbox.InboxReader;
 import software.spool.core.port.inbox.InboxUpdater;
 import software.spool.core.port.watchdog.ModuleHeartBeat;
 import software.spool.core.utils.polling.PollingConfiguration;
@@ -52,6 +54,7 @@ public class IngesterBuilder {
     private final ModuleHeartBeat heartBeat;
     private EventBusListener listener;
     private DataLakeWriter writer;
+    private InboxReader reader;
     private InboxUpdater updater;
     private EventBusEmitter emitter;
     private FlushPolicy flushPolicy;
@@ -106,6 +109,11 @@ public class IngesterBuilder {
         return this;
     }
 
+    public IngesterBuilder readerWith(InboxReader reader) {
+        this.reader = SafeInboxReader.of(reader);
+        return this;
+    }
+
     /**
      * Sets the {@link EventBusEmitter} used to emit {@code ItemPersisted} events.
      *
@@ -125,7 +133,7 @@ public class IngesterBuilder {
      */
     public Ingester create() {
         ItemValidator validator = new ItemValidator(new ValidatorRegistry());
-        ItemPublishedHandler handler = new ItemPublishedHandler(writer, updater, emitter, validator, quarantineStore, IngesterErrorRouter.defaults(emitter));
+        ItemPublishedHandler handler = new ItemPublishedHandler(writer, reader, updater, emitter, validator, quarantineStore, IngesterErrorRouter.defaults(emitter));
         FlushCoordinator flushCoordinator = new FlushCoordinator(new Buffer(), flushPolicy, handler);
         return new Ingester(listener, pollingConfiguration, flushCoordinator, heartBeat, IngesterErrorRouter.defaults(emitter));
     }

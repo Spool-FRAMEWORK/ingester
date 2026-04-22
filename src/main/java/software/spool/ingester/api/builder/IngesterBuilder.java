@@ -23,6 +23,7 @@ import software.spool.ingester.internal.utils.FlushPolicy;
 import software.spool.validator.engine.ValidatorRegistry;
 
 import java.time.Duration;
+import java.util.Objects;
 
 /**
  * Fluent builder that configures and assembles an {@link Ingester} instance.
@@ -133,7 +134,7 @@ public class IngesterBuilder {
      */
     public Ingester create() {
         ItemValidator validator = new ItemValidator(new ValidatorRegistry());
-        ItemPublishedHandler handler = new ItemPublishedHandler(writer, reader, updater, emitter, validator, quarantineStore, IngesterErrorRouter.defaults(emitter));
+        ItemPublishedHandler handler = new ItemPublishedHandler(writer, Objects.requireNonNull(reader, "InboxReader required"), updater, emitter, validator, quarantineStore, IngesterErrorRouter.defaults(emitter));
         FlushCoordinator flushCoordinator = new FlushCoordinator(new Buffer(), flushPolicy, handler);
         return new Ingester(listener, pollingConfiguration, flushCoordinator, heartBeat, IngesterErrorRouter.defaults(emitter));
     }

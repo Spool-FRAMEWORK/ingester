@@ -1,12 +1,12 @@
 package software.spool.ingester.api.builder;
 
-import software.spool.core.port.bus.EventBusEmitter;
-import software.spool.core.port.bus.EventBusListener;
-import software.spool.core.port.decorator.SafeEventBusEmitter;
-import software.spool.core.port.decorator.SafeEventBusListener;
-import software.spool.core.port.decorator.SafeInboxReader;
+import software.spool.core.port.bus.EventPublisher;
+import software.spool.core.port.bus.EventSubscriber;
+import software.spool.core.port.decorator.SafeEventPublisher;
+import software.spool.core.port.decorator.SafeEventSubscriber;
+import software.spool.core.port.decorator.SafeInboxEnvelopeResolver;
 import software.spool.core.port.decorator.SafeInboxUpdater;
-import software.spool.core.port.inbox.InboxReader;
+import software.spool.core.port.inbox.InboxEnvelopeResolver;
 import software.spool.core.port.inbox.InboxUpdater;
 import software.spool.core.port.watchdog.ModuleHeartBeat;
 import software.spool.core.utils.polling.PollingConfiguration;
@@ -25,39 +25,13 @@ import software.spool.validator.engine.ValidatorRegistry;
 import java.time.Duration;
 import java.util.Objects;
 
-/**
- * Fluent builder that configures and assembles an {@link Ingester} instance.
- *
- * <p>
- * Instances are normally obtained via
- * {@link IngesterBuilderFactory#reactive()} or
- * {@link IngesterBuilderFactory#buffered()} and then further customised
- * before calling {@link #create()}.
- * </p>
- *
- * <p>
- * All ports passed to setter methods are automatically wrapped in their
- * corresponding {@code Safe*} decorators to normalise unchecked exceptions
- * into typed {@link software.spool.core.exception.SpoolException} subclasses.
- * </p>
- *
- * <pre>{@code
- * Ingester ingester = IngesterBuilderFactory.buffered()
- *         .from(eventBusListener)
- *         .storesWith(dataLakeWriter)
- *         .updatedWith(inboxUpdater)
- *         .on(eventBusEmitter)
- *         .flushWith(FlushPolicy.every(Duration.ofSeconds(10)))
- *         .create();
- * }</pre>
- */
 public class IngesterBuilder {
     private final ModuleHeartBeat heartBeat;
-    private EventBusListener listener;
+    private EventSubscriber listener;
     private DataLakeWriter writer;
-    private InboxReader reader;
+    private InboxEnvelopeResolver reader;
     private InboxUpdater updater;
-    private EventBusEmitter emitter;
+    private EventPublisher publisher;
     private FlushPolicy flushPolicy;
     private QuarantineStore quarantineStore;
     private final PollingConfiguration pollingConfiguration;
@@ -77,65 +51,35 @@ public class IngesterBuilder {
         return this;
     }
 
-    /**
-     * Sets the {@link EventBusListener} that the ingester subscribes to.
-     *
-     * @param listener the event bus listener; must not be {@code null}
-     * @return this builder for chaining
-     */
-    public IngesterBuilder from(EventBusListener listener) {
-        this.listener = SafeEventBusListener.of(listener);
+    public IngesterBuilder from(EventSubscriber listener) {
+        this.listener = SafeEventSubscriber.of(listener);
         return this;
     }
 
-    /**
-     * Sets the {@link DataLakeWriter} that persists flushed batches.
-     *
-     * @param writer the data lake writer; must not be {@code null}
-     * @return this builder for chaining
-     */
     public IngesterBuilder storesWith(DataLakeWriter writer) {
         this.writer = SafeDataLakeWriter.of(writer);
         return this;
     }
 
-    /**
-     * Sets the {@link InboxUpdater} used to mark inbox items as persisted.
-     *
-     * @param updater the inbox updater; must not be {@code null}
-     * @return this builder for chaining
-     */
     public IngesterBuilder updatedWith(InboxUpdater updater) {
         this.updater = SafeInboxUpdater.of(updater);
         return this;
     }
 
-    public IngesterBuilder readWith(InboxReader reader) {
-        this.reader = SafeInboxReader.of(reader);
+    public IngesterBuilder readWith(InboxEnvelopeResolver reader) {
+        this.reader = SafeInboxEnvelopeResolver.of(reader);
         return this;
     }
 
-    /**
-     * Sets the {@link EventBusEmitter} used to emit {@code ItemPersisted} events.
-     *
-     * @param emitter the event bus emitter; must not be {@code null}
-     * @return this builder for chaining
-     */
-    public IngesterBuilder on(EventBusEmitter emitter) {
-        this.emitter = SafeEventBusEmitter.of(emitter);
+    public IngesterBuilder on(EventPublisher emitter) {
+        this.publisher = SafeEventPublisher.of(emitter);
         return this;
     }
 
-    /**
-     * Builds and returns the configured {@link Ingester}.
-     *
-     * @return a new {@code Ingester} ready to start ingestion
-     * @throws NullPointerException if any required port has not been set
-     */
     public Ingester create() {
         ItemValidator validator = new ItemValidator(new ValidatorRegistry());
-        ItemPublishedHandler handler = new ItemPublishedHandler(writer, Objects.requireNonNull(reader, "InboxReader required"), updater, emitter, validator, quarantineStore, IngesterErrorRouter.defaults(emitter));
+        ItemPublishedHandler handler = new ItemPublishedHandler(writer, Objects.requireNonNull(reader, "InboxReader required"), updater, publisher, validator, quarantineStore, IngesterErrorRouter.defaults(publisher));
         FlushCoordinator flushCoordinator = new FlushCoordinator(new Buffer(), flushPolicy, handler);
-        return new Ingester(listener, pollingConfiguration, flushCoordinator, heartBeat, IngesterErrorRouter.defaults(emitter));
+        return new Ingester(listener, pollingConfiguration, flushCoordinator, heartBeat, IngesterErrorRouter.defaults(publisher));
     }
 }

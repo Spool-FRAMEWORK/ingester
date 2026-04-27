@@ -1,9 +1,8 @@
 package software.spool.ingester.internal.decorator;
 
 import software.spool.core.exception.SpoolException;
-import software.spool.core.model.event.ItemPublished;
+import software.spool.core.model.vo.Envelope;
 import software.spool.core.model.vo.IdempotencyKey;
-import software.spool.core.model.vo.InboxItem;
 import software.spool.ingester.api.port.DataLakeWriter;
 import software.spool.ingester.internal.exception.DataLakeWriteException;
 
@@ -38,7 +37,7 @@ public class SafeDataLakeWriter implements DataLakeWriter {
     }
 
     @Override
-    public Stream<IdempotencyKey> write(Collection<InboxItem> items) {
+    public Stream<IdempotencyKey> write(Collection<Envelope> items) {
         try {
             return writer.write(items);
         } catch (SpoolException e) {

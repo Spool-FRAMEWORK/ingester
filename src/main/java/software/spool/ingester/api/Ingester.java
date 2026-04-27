@@ -1,9 +1,10 @@
 package software.spool.ingester.api;
 
-import software.spool.core.model.event.ItemPublished;
+import software.spool.core.model.event.EnvelopeStored;
 import software.spool.core.model.spool.SpoolModule;
 import software.spool.core.model.spool.SpoolNode;
-import software.spool.core.port.bus.EventBusListener;
+import software.spool.core.port.bus.Destination;
+import software.spool.core.port.bus.EventSubscriber;
 import software.spool.core.port.health.ModuleHealthPayload;
 import software.spool.core.port.watchdog.ModuleHeartBeat;
 import software.spool.core.utils.polling.CancellationToken;
@@ -17,7 +18,7 @@ import java.util.Objects;
  * Main API entry point for the ingestion lifecycle.
  *
  * <p>
- * An {@code Ingester} subscribes to {@link ItemPublished} events on the event
+ * An {@code Ingester} subscribes to {@link EnvelopeStored} events on the event
  * bus,
  * buffers them according to the configured {@link FlushCoordinator}, and
  * periodically
@@ -46,7 +47,7 @@ import java.util.Objects;
  */
 public class Ingester implements SpoolModule {
     private final ModuleHeartBeat heartBeat;
-    private final EventBusListener listener;
+    private final EventSubscriber subscriber;
     private final FlushCoordinator coordinator;
     private final PollingConfiguration pollingConfiguration;
     private final ErrorRouter errorRouter;
@@ -54,17 +55,17 @@ public class Ingester implements SpoolModule {
 
 
     /**
-     * Creates a new {@code Ingester} with the given event bus listener and flush
+     * Creates a new {@code Ingester} with the given event bus subscriber and flush
      * coordinator.
      *
-     * @param listener             the event bus listener to subscribe for
-     *                             {@link ItemPublished} events;
+     * @param subscriber             the event bus subscriber to subscribe for
+     *                             {@link EnvelopeStored} events;
      *                             must not be {@code null}
      * @param coordinator          the flush coordinator that manages buffering and flushing;
      *                             must not be {@code null}
      */
-    public Ingester(EventBusListener listener, PollingConfiguration pollingConfiguration, FlushCoordinator coordinator, ModuleHeartBeat heartBeat, ErrorRouter errorRouter) {
-        this.listener = listener;
+    public Ingester(EventSubscriber subscriber, PollingConfiguration pollingConfiguration, FlushCoordinator coordinator, ModuleHeartBeat heartBeat, ErrorRouter errorRouter) {
+        this.subscriber = subscriber;
         this.coordinator = coordinator;
         this.pollingConfiguration = pollingConfiguration;
         this.heartBeat = heartBeat;
@@ -76,7 +77,7 @@ public class Ingester implements SpoolModule {
      * Starts the ingestion process.
      *
      * <p>
-     * Subscribes to {@link ItemPublished} events on the event bus and starts a
+     * Subscribes to {@link EnvelopeStored} events on the event bus and starts a
      * background scheduler that checks the flush policy every 200 milliseconds.
      * Calling this method when ingestion is already active has no effect.
      * </p>
@@ -86,9 +87,10 @@ public class Ingester implements SpoolModule {
         Objects.requireNonNull(permit);
         token = CancellationToken.create();
         try {
-            listener.on(ItemPublished.class, i -> {
+            subscriber.subscribe(new Destination("spool." + EnvelopeStored.class.getSimpleName()),
+                    EnvelopeStored.class, e -> {
                 if (token.isCancelled()) return;
-                coordinator.submit(i);
+                coordinator.submit(e.payload());
             });
             pollingConfiguration.scheduler().schedule(
                     coordinator::flushIfNeeded,

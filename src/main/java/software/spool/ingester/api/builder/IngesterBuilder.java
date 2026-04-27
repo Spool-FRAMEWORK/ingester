@@ -14,6 +14,7 @@ import software.spool.ingester.api.Ingester;
 import software.spool.ingester.api.port.DataLakeWriter;
 import software.spool.ingester.api.port.QuarantineStore;
 import software.spool.ingester.api.utils.IngesterErrorRouter;
+import software.spool.ingester.internal.control.EnvelopeStoredHandler;
 import software.spool.ingester.internal.control.ItemPublishedHandler;
 import software.spool.ingester.internal.control.ItemValidator;
 import software.spool.ingester.internal.decorator.SafeDataLakeWriter;
@@ -78,7 +79,7 @@ public class IngesterBuilder {
 
     public Ingester create() {
         ItemValidator validator = new ItemValidator(new ValidatorRegistry());
-        ItemPublishedHandler handler = new ItemPublishedHandler(writer, Objects.requireNonNull(reader, "InboxReader required"), updater, publisher, validator, quarantineStore, IngesterErrorRouter.defaults(publisher));
+        EnvelopeStoredHandler handler = new EnvelopeStoredHandler(writer, Objects.requireNonNull(reader, "InboxReader required"), updater, publisher, validator, quarantineStore, IngesterErrorRouter.defaults(publisher));
         FlushCoordinator flushCoordinator = new FlushCoordinator(new Buffer(), flushPolicy, handler);
         return new Ingester(listener, pollingConfiguration, flushCoordinator, heartBeat, IngesterErrorRouter.defaults(publisher));
     }

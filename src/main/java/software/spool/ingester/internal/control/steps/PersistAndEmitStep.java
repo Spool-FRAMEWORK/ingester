@@ -1,54 +1,48 @@
 package software.spool.ingester.internal.control.steps;
 
 import software.spool.core.adapter.jackson.PayloadDeserializerFactory;
-import software.spool.core.model.EnvelopeStatus;
 import software.spool.core.model.event.EnvelopePersisted;
 import software.spool.core.model.vo.*;
 import software.spool.core.pipeline.PipelineContext;
 import software.spool.core.pipeline.Step;
-import software.spool.core.port.bus.BrokerMessage;
-import software.spool.core.port.bus.Destination;
 import software.spool.core.port.bus.EventPublisher;
-import software.spool.core.port.inbox.InboxUpdater;
 import software.spool.core.utils.routing.ErrorRouter;
+import software.spool.ingester.api.port.DataLakeWriter;
 import software.spool.ingester.internal.model.EnvelopeStoredContext;
 
 import javax.management.AttributeNotFoundException;
-import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class PersistAndEmitStep implements Step<PipelineContext, PipelineContext> {
-
-    private final InboxUpdater updater;
+    private final DataLakeWriter dataLakeWriter;
     private final EventPublisher publisher;
     private final ErrorRouter errorRouter;
 
-    public PersistAndEmitStep(InboxUpdater updater, EventPublisher publisher, ErrorRouter errorRouter) {
-        this.updater = updater;
+    public PersistAndEmitStep(DataLakeWriter dataLakeWriter, EventPublisher publisher, ErrorRouter errorRouter) {
+        this.dataLakeWriter = dataLakeWriter;
         this.publisher = publisher;
         this.errorRouter = errorRouter;
     }
 
     @Override
     public PipelineContext apply(PipelineContext ctx) throws AttributeNotFoundException {
-        Set<IdempotencyKey> written = ctx.require(EnvelopePipelineKeys.WRITTEN_KEYS);
+        Set<IdempotencyKey> written = dataLakeWriter
+                .write(ctx.require(EnvelopePipelineKeys.VALID_CONTEXTS).stream().map(EnvelopeStoredContext::envelope).toList())
+                .collect(Collectors.toSet());
         ctx.require(EnvelopePipelineKeys.VALID_CONTEXTS).stream()
                 .filter(e -> written.contains(e.idempotencyKey()))
                 .forEach(this::updateAndEmit);
-        return ctx;
+        return ctx.with(EnvelopePipelineKeys.WRITTEN_KEYS, written);
     }
 
     private void updateAndEmit(EnvelopeStoredContext e) {
         try {
-            updater.update(e.idempotencyKey(), EnvelopeStatus.PERSISTED);
             EnvelopePersisted event = EnvelopePersisted.builder()
                     .from(e.event())
                     .partitionKey(PartitionKey.of(partitionKeySchema(e.envelope())).from(e.payload()))
                     .build();
-            publisher.publish(
-                    new Destination("spool." + event.getClass().getSimpleName()),
-                    new BrokerMessage<>(event, event.getClass().getSimpleName(), Map.of())
-            );
+            publisher.publish(event);
         } catch (Exception ex) {
             errorRouter.dispatch(ex);
         }

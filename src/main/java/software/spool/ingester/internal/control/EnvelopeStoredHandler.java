@@ -8,7 +8,6 @@ import software.spool.core.pipeline.PipelineContext;
 import software.spool.core.port.bus.EventPublisher;
 import software.spool.core.port.bus.Handler;
 import software.spool.core.port.inbox.InboxEnvelopeResolver;
-import software.spool.core.port.inbox.InboxUpdater;
 import software.spool.core.utils.routing.ErrorRouter;
 import software.spool.ingester.api.port.DataLakeWriter;
 import software.spool.ingester.api.port.QuarantineStore;
@@ -23,7 +22,6 @@ public class EnvelopeStoredHandler implements Handler<Collection<EnvelopeStored>
 
     public EnvelopeStoredHandler(DataLakeWriter dataLakeWriter,
                                  InboxEnvelopeResolver reader,
-                                 InboxUpdater updater,
                                  EventPublisher publisher,
                                  ItemValidator validator,
                                  QuarantineStore quarantineStore,
@@ -33,8 +31,7 @@ public class EnvelopeStoredHandler implements Handler<Collection<EnvelopeStored>
                 .add(new ObservedStep<>("resolve-envelopes", new ResolveEnvelopesStep(reader)))
                 .add(new ObservedStep<>("partition-envelopes", new PartitionEnvelopesStep(validator)))
                 .add(new ObservedStep<>("quarantine", new QuarantineStep(quarantineStore, publisher, errorRouter)))
-                .add(new ObservedStep<>("write-to-data-lake", new WriteToDataLakeStep(dataLakeWriter)))
-                .add(new ObservedStep<>("persist-and-emit", new PersistAndEmitStep(updater, publisher, errorRouter)));
+                .add(new ObservedStep<>("persist-and-emit", new PersistAndEmitStep(dataLakeWriter, publisher, errorRouter)));
     }
 
     @Override

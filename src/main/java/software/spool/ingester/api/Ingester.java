@@ -87,10 +87,9 @@ public class Ingester implements SpoolModule {
         Objects.requireNonNull(permit);
         token = CancellationToken.create();
         try {
-            subscriber.subscribe(new Destination("spool." + EnvelopeStored.class.getSimpleName()),
-                    EnvelopeStored.class, e -> {
+            subscriber.subscribe(EnvelopeStored.class, e -> {
                 if (token.isCancelled()) return;
-                coordinator.submit(e.payload());
+                coordinator.submit(e);
             });
             pollingConfiguration.scheduler().schedule(
                     coordinator::flushIfNeeded,

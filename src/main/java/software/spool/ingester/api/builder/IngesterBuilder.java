@@ -5,9 +5,7 @@ import software.spool.core.port.bus.EventSubscriber;
 import software.spool.core.port.decorator.SafeEventPublisher;
 import software.spool.core.port.decorator.SafeEventSubscriber;
 import software.spool.core.port.decorator.SafeInboxEnvelopeResolver;
-import software.spool.core.port.decorator.SafeInboxUpdater;
 import software.spool.core.port.inbox.InboxEnvelopeResolver;
-import software.spool.core.port.inbox.InboxUpdater;
 import software.spool.core.port.watchdog.ModuleHeartBeat;
 import software.spool.core.utils.polling.PollingConfiguration;
 import software.spool.ingester.api.Ingester;
@@ -30,7 +28,6 @@ public class IngesterBuilder {
     private EventSubscriber listener;
     private DataLakeWriter writer;
     private InboxEnvelopeResolver reader;
-    private InboxUpdater updater;
     private EventPublisher publisher;
     private FlushPolicy flushPolicy;
     private QuarantineStore quarantineStore;
@@ -61,11 +58,6 @@ public class IngesterBuilder {
         return this;
     }
 
-    public IngesterBuilder updatedWith(InboxUpdater updater) {
-        this.updater = SafeInboxUpdater.of(updater);
-        return this;
-    }
-
     public IngesterBuilder readWith(InboxEnvelopeResolver reader) {
         this.reader = SafeInboxEnvelopeResolver.of(reader);
         return this;
@@ -78,7 +70,7 @@ public class IngesterBuilder {
 
     public Ingester create() {
         ItemValidator validator = new ItemValidator(new ValidatorRegistry());
-        EnvelopeStoredHandler handler = new EnvelopeStoredHandler(writer, Objects.requireNonNull(reader, "InboxReader required"), updater, publisher, validator, quarantineStore, IngesterErrorRouter.defaults(publisher));
+        EnvelopeStoredHandler handler = new EnvelopeStoredHandler(writer, Objects.requireNonNull(reader, "InboxReader required"), publisher, validator, quarantineStore, IngesterErrorRouter.defaults(publisher));
         FlushCoordinator flushCoordinator = new FlushCoordinator(new Buffer(), flushPolicy, handler);
         return new Ingester(listener, pollingConfiguration, flushCoordinator, heartBeat, IngesterErrorRouter.defaults(publisher));
     }

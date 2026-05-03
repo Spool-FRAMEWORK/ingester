@@ -40,6 +40,7 @@ public class PersistAndEmitStep implements Step<PipelineContext, PipelineContext
         try {
             EnvelopePersisted event = EnvelopePersisted.builder()
                     .from(e.event())
+                    .idempotencyKey(e.idempotencyKey())
                     .partitionKey(PartitionKey.of(partitionKeySchema(e.envelope())).from(e.payload()))
                     .build();
             publisher.publish(event);

@@ -1,11 +1,12 @@
 package software.spool.ingester.api;
 
+import software.spool.core.model.EnvelopeStatus;
 import software.spool.core.model.event.EnvelopeStored;
 import software.spool.core.model.spool.SpoolModule;
 import software.spool.core.model.spool.SpoolNode;
-import software.spool.core.port.bus.Destination;
 import software.spool.core.port.bus.EventSubscriber;
 import software.spool.core.port.health.ModuleHealthPayload;
+import software.spool.core.port.inbox.InboxUpdater;
 import software.spool.core.port.watchdog.ModuleHeartBeat;
 import software.spool.core.utils.polling.CancellationToken;
 import software.spool.core.utils.polling.PollingConfiguration;
@@ -51,6 +52,7 @@ public class Ingester implements SpoolModule {
     private final FlushCoordinator coordinator;
     private final PollingConfiguration pollingConfiguration;
     private final ErrorRouter errorRouter;
+    private final InboxUpdater updater;
     private volatile CancellationToken token;
 
 
@@ -58,13 +60,14 @@ public class Ingester implements SpoolModule {
      * Creates a new {@code Ingester} with the given event bus subscriber and flush
      * coordinator.
      *
-     * @param subscriber             the event bus subscriber to subscribe for
-     *                             {@link EnvelopeStored} events;
-     *                             must not be {@code null}
-     * @param coordinator          the flush coordinator that manages buffering and flushing;
-     *                             must not be {@code null}
+     * @param subscriber  the event bus subscriber to subscribe for
+     *                    {@link EnvelopeStored} events;
+     *                    must not be {@code null}
+     * @param coordinator the flush coordinator that manages buffering and flushing;
+     *                    must not be {@code null}
      */
-    public Ingester(EventSubscriber subscriber, PollingConfiguration pollingConfiguration, FlushCoordinator coordinator, ModuleHeartBeat heartBeat, ErrorRouter errorRouter) {
+    public Ingester(InboxUpdater updater, EventSubscriber subscriber, PollingConfiguration pollingConfiguration, FlushCoordinator coordinator, ModuleHeartBeat heartBeat, ErrorRouter errorRouter) {
+        this.updater = updater;
         this.subscriber = subscriber;
         this.coordinator = coordinator;
         this.pollingConfiguration = pollingConfiguration;
@@ -90,6 +93,7 @@ public class Ingester implements SpoolModule {
             subscriber.subscribe(EnvelopeStored.class, e -> {
                 if (token.isCancelled()) return;
                 coordinator.submit(e);
+                updater.update(e.idempotencyKey(), EnvelopeStatus.INGESTED);
             });
             pollingConfiguration.scheduler().schedule(
                     coordinator::flushIfNeeded,

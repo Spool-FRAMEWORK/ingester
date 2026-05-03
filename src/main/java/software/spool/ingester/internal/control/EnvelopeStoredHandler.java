@@ -16,7 +16,6 @@ import software.spool.ingester.internal.control.steps.*;
 import java.util.Collection;
 
 public class EnvelopeStoredHandler implements Handler<Collection<EnvelopeStored>> {
-
     private final Pipeline<PipelineContext, PipelineContext> pipeline;
     private final ErrorRouter errorRouter;
 

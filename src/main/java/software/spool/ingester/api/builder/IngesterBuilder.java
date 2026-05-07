@@ -80,6 +80,6 @@ public class IngesterBuilder {
         ItemValidator validator = new ItemValidator(new ValidatorRegistry());
         EnvelopeStoredHandler handler = new EnvelopeStoredHandler(writer, Objects.requireNonNull(reader, "InboxReader required"), publisher, validator, quarantineStore, IngesterErrorRouter.defaults(publisher));
         FlushCoordinator flushCoordinator = new FlushCoordinator(new Buffer(), flushPolicy, handler);
-        return new Ingester(updater, listener, pollingConfiguration, flushCoordinator, heartBeat, IngesterErrorRouter.defaults(publisher));
+        return new Ingester(listener, pollingConfiguration, flushCoordinator, heartBeat, IngesterErrorRouter.defaults(publisher));
     }
 }

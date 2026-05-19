@@ -17,7 +17,7 @@ public class ItemValidator {
     }
 
     public ValidationResult validate(Envelope envelope) {
-        String sourceId = envelope.metadata().get(EventMetadataKey.SOURCE);
+        String sourceId = new String(envelope.metadata().get(EventMetadataKey.SOURCE));
         Optional<Class<?>> payloadTypeOptional = registry.resolveClass(sourceId);
         if (payloadTypeOptional.isEmpty() || !registry.hasValidatorsFor(sourceId, payloadTypeOptional.get()))
             return ValidationResult.of(new ArrayList<>());

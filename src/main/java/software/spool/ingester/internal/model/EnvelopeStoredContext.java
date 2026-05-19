@@ -12,7 +12,7 @@ public record EnvelopeStoredContext(
         return event.idempotencyKey();
     }
 
-    public String payload() {
+    public byte[] payload() {
         return envelope.payload();
     }
 }

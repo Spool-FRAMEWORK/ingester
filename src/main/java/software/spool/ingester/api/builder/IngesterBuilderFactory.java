@@ -9,31 +9,6 @@ import software.spool.ingester.internal.utils.FlushPolicy;
 import java.time.Duration;
 import java.util.Objects;
 
-/**
- * Factory entry point for creating pre-configured {@link IngesterBuilder}
- * instances.
- *
- * <p>
- * Two built-in presets are provided:
- * </p>
- * <ul>
- * <li>{@link #reactive()} — flushes immediately on every event (no
- * buffering).</li>
- * <li>{@link #buffered()} — flushes when the buffer reaches 100 items or every
- * 60 seconds, whichever comes first.</li>
- * </ul>
- *
- * <pre>{@code
- * Ingester ingester = IngesterBuilderFactory.buffered()
- *         .from(eventBus)
- *         .storesWith(myDataLakeWriter)
- *         .updatedWith(inboxUpdater)
- *         .on(eventBusEmitter)
- *         .create();
- * }</pre>
- *
- * @see IngesterBuilder
- */
 public class IngesterBuilderFactory {
     public static IngesterBuilder reactive() {
         return new Configuration().reactive();

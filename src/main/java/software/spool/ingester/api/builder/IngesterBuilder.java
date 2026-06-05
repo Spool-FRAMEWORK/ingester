@@ -1,13 +1,14 @@
 package software.spool.ingester.api.builder;
 
+import software.spool.core.adapter.otel.OpenTelemetryMetricsRegistry;
 import software.spool.core.port.bus.EventPublisher;
 import software.spool.core.port.bus.EventSubscriber;
 import software.spool.core.port.decorator.SafeEventPublisher;
 import software.spool.core.port.decorator.SafeEventSubscriber;
 import software.spool.core.port.decorator.SafeInboxEnvelopeResolver;
-import software.spool.core.port.decorator.SafeInboxUpdater;
 import software.spool.core.port.inbox.InboxEnvelopeResolver;
-import software.spool.core.port.inbox.InboxUpdater;
+import software.spool.core.port.metrics.MetricsRegistry;
+import software.spool.core.port.metrics.SpoolMetrics;
 import software.spool.core.port.watchdog.ModuleHeartBeat;
 import software.spool.core.utils.polling.PollingConfiguration;
 import software.spool.ingester.api.Ingester;
@@ -30,7 +31,6 @@ public class IngesterBuilder {
     private EventSubscriber listener;
     private DataLakeWriter writer;
     private InboxEnvelopeResolver reader;
-    private InboxUpdater updater;
     private EventPublisher publisher;
     private FlushPolicy flushPolicy;
     private QuarantineStore quarantineStore;
@@ -66,19 +66,18 @@ public class IngesterBuilder {
         return this;
     }
 
-    public IngesterBuilder readWith(InboxUpdater updater) {
-        this.updater = SafeInboxUpdater.of(updater);
-        return this;
-    }
-
     public IngesterBuilder on(EventPublisher emitter) {
         this.publisher = SafeEventPublisher.of(emitter);
         return this;
     }
 
     public Ingester create() {
+        MetricsRegistry metrics = new OpenTelemetryMetricsRegistry();
+        MetricsRegistry.CounterMetric recordsTotal = metrics.counter(SpoolMetrics.Ingester.RECORDS_TOTAL, SpoolMetrics.Ingester.RECORDS_TOTAL_DESC, "1");
+        MetricsRegistry.CounterMetric recordsRejected = metrics.counter(SpoolMetrics.Ingester.RECORDS_REJECTED_TOTAL, SpoolMetrics.Ingester.RECORDS_REJECTED_TOTAL_DESC, "1");
+        MetricsRegistry.TimerMetric processingTimer = metrics.timer(SpoolMetrics.Ingester.PROCESSING_DURATION, SpoolMetrics.Ingester.PROCESSING_DURATION_DESC, "s");
         ItemValidator validator = new ItemValidator(new ValidatorRegistry());
-        EnvelopeStoredHandler handler = new EnvelopeStoredHandler(writer, Objects.requireNonNull(reader, "InboxReader required"), publisher, validator, quarantineStore, IngesterErrorRouter.defaults(publisher));
+        EnvelopeStoredHandler handler = new EnvelopeStoredHandler(writer, Objects.requireNonNull(reader, "InboxReader required"), publisher, validator, quarantineStore, IngesterErrorRouter.defaults(publisher), recordsTotal, recordsRejected, processingTimer);
         FlushCoordinator flushCoordinator = new FlushCoordinator(new Buffer(), flushPolicy, handler);
         return new Ingester(listener, pollingConfiguration, flushCoordinator, heartBeat, IngesterErrorRouter.defaults(publisher));
     }

@@ -3,9 +3,9 @@ package software.spool.ingester.api;
 import software.spool.core.model.event.EnvelopeStored;
 import software.spool.core.model.spool.SpoolModule;
 import software.spool.core.model.spool.SpoolNode;
-import software.spool.core.port.bus.Destination;
 import software.spool.core.port.bus.EventSubscriber;
 import software.spool.core.port.health.ModuleHealthPayload;
+import software.spool.core.port.inbox.InboxUpdater;
 import software.spool.core.port.watchdog.ModuleHeartBeat;
 import software.spool.core.utils.polling.CancellationToken;
 import software.spool.core.utils.polling.PollingConfiguration;
@@ -58,11 +58,11 @@ public class Ingester implements SpoolModule {
      * Creates a new {@code Ingester} with the given event bus subscriber and flush
      * coordinator.
      *
-     * @param subscriber             the event bus subscriber to subscribe for
-     *                             {@link EnvelopeStored} events;
-     *                             must not be {@code null}
-     * @param coordinator          the flush coordinator that manages buffering and flushing;
-     *                             must not be {@code null}
+     * @param subscriber  the event bus subscriber to subscribe for
+     *                    {@link EnvelopeStored} events;
+     *                    must not be {@code null}
+     * @param coordinator the flush coordinator that manages buffering and flushing;
+     *                    must not be {@code null}
      */
     public Ingester(EventSubscriber subscriber, PollingConfiguration pollingConfiguration, FlushCoordinator coordinator, ModuleHeartBeat heartBeat, ErrorRouter errorRouter) {
         this.subscriber = subscriber;
@@ -87,10 +87,9 @@ public class Ingester implements SpoolModule {
         Objects.requireNonNull(permit);
         token = CancellationToken.create();
         try {
-            subscriber.subscribe(new Destination("spool." + EnvelopeStored.class.getSimpleName()),
-                    EnvelopeStored.class, e -> {
+            subscriber.subscribe(EnvelopeStored.class, e -> {
                 if (token.isCancelled()) return;
-                coordinator.submit(e.payload());
+                coordinator.submit(e);
             });
             pollingConfiguration.scheduler().schedule(
                     coordinator::flushIfNeeded,

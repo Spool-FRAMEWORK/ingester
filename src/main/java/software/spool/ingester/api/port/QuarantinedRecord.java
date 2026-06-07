@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 
 public record QuarantinedRecord(
-        String original,
+        byte[] original,
         List<String> violations,
         Instant quarantinedAt
 ) {}

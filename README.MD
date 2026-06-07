@@ -1,17 +1,16 @@
 # Spool — Ingester
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](https://openjdk.org/)
+[![Java](https://img.shields.io/badge/Java-21%2B-orange.svg)](https://openjdk.org/)
 [![Maven](https://img.shields.io/badge/build-Maven-C71A36.svg)](https://maven.apache.org/)
 
-**Ingester** is the **Spool** framework module responsible for **buffering published events and flushing them in batches to a data lake**. It listens for `ItemPublished` events on the event bus, accumulates them in a thread-safe buffer, and writes them to your storage backend according to a configurable flush policy.
+**Ingester** is the **Spool** framework module responsible for **consuming events from the bus and writing envelopes in batches to a data lake**. It subscribes to events, accumulates the corresponding envelopes in a buffer, and flushes them to your storage backend based on a configurable flush policy.
 
 ---
 
 ## Table of Contents
 
-- [Architecture](#architecture)
-- [Key Concepts](#key-concepts)
+- [What it does](#what-it-does)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Examples](#examples)
@@ -20,65 +19,41 @@
   - [Time-based Flush Policy](#time-based-flush-policy)
   - [Combined Flush Policy](#combined-flush-policy)
   - [Custom DataLakeWriter (S3)](#custom-datalakewriter-s3)
-  - [Custom Error Routing](#custom-error-routing)
-- [API Reference](#api-reference)
+  - [Quarantine Store](#quarantine-store)
+  - [Watchdog Integration](#watchdog-integration)
+- [Key Concepts](#key-concepts)
 - [Flush Policies](#flush-policies)
-- [Event Model](#event-model)
 - [License](#license)
 
 ---
 
-## Architecture
+## What it does
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                          Ingester                            │
-│                                                              │
-│  EventBus ──► ItemPublished ──► FlushCoordinator             │
-│                                     │                        │
-│                              ┌──────┴──────┐                 │
-│                              ▼             ▼                 │
-│                           Buffer      FlushPolicy            │
-│                              │       (shouldFlush?)          │
-│                              ▼                               │
-│                     ItemPublishedHandler                      │
-│                      │         │        │                    │
-│                      ▼         ▼        ▼                    │
-│              DataLakeWriter  InboxUpdater  EventBus           │
-│              (write batch)   (→PERSISTED)  (ItemPersisted)   │
-│                                                              │
-│  Errors ──► ErrorRouter ──► EventBus.emit(FailureEvent)      │
-└──────────────────────────────────────────────────────────────┘
+EventBus ──► (event received) ──► Buffer
+                                     │
+                                FlushPolicy
+                               (shouldFlush?)
+                                     │
+                                     ▼
+                        InboxEnvelopeResolver.findByIds()
+                                     │
+                                     ▼
+                        DataLakeWriter.write(envelopes)
+                                     │
+                              ┌──────┴──────┐
+                              ▼             ▼
+                        QuarantineStore  EventPublisher
+                        (on failure)     (ItemPersisted)
+
+Errors ──► ErrorRouter ──► failure event
 ```
 
-The ingestion flow:
-
-1. **`EventBus`** — delivers `ItemPublished` events to the ingester.
-2. **`Buffer`** — accumulates events in a thread-safe list.
-3. **`FlushPolicy`** — evaluates whether the buffer should be flushed (by size, time, or both).
-4. **`DataLakeWriter.write()`** — persists the batch to the data lake.
-5. **`InboxUpdater`** — marks each inbox item as `PERSISTED`.
-6. **`EventBus`** — emits `ItemPersisted` for each processed item.
-
----
-
-## Key Concepts
-
-| Concept | Description |
-|---|---|
-| **`Ingester`** | API entry point. Manages the ingestion lifecycle (`startIngestion` / `stopIngestion`). |
-| **`DataLakeWriter`** | Interface you implement to persist event batches (database, S3, data warehouse…). |
-| **`FlushPolicy`** | Rules for when to flush: `immediate()`, `whenReaches(n)`, `every(duration)`, or combinations. |
-| **`FlushCoordinator`** | Internal coordinator that manages the buffer and applies the flush policy. |
-| **`Buffer`** | Thread-safe in-memory buffer for `ItemPublished` events. |
-| **`IngesterBuilderFactory`** | DSL entry point with `reactive()` and `buffered()` presets. |
-| **`IngesterBuilder`** | Fluent builder for custom ingester configuration. |
+The Ingester resolves full `Envelope` records from the inbox, writes them in batches to the data lake, and emits a confirmation event for each persisted item.
 
 ---
 
 ## Installation
-
-### Maven (GitHub Packages)
 
 ```xml
 <dependency>
@@ -87,8 +62,6 @@ The ingestion flow:
     <version>1.0.0-SNAPSHOT</version>
 </dependency>
 ```
-
-Configure the GitHub Packages repository in your `pom.xml` or `settings.xml`:
 
 ```xml
 <repositories>
@@ -99,30 +72,25 @@ Configure the GitHub Packages repository in your `pom.xml` or `settings.xml`:
 </repositories>
 ```
 
-> Requires **Java 17+**.
+> Requires **Java 21+**.
 
 ---
 
 ## Quick Start
 
 ```java
-// 1. Create your infrastructure
-InMemoryEventBus bus = new InMemoryEventBus();
-InMemoryDataLake dataLake = new InMemoryDataLake();
-InMemoryInbox inbox = new InMemoryInbox();
-
-// 2. Create the ingester with buffered defaults (flush at 100 items or 60s)
+// Buffered defaults: flush at 100 items or every 60 seconds
 Ingester ingester = IngesterBuilderFactory.buffered()
-        .from(bus)                // listen for ItemPublished events
-        .storesWith(dataLake)     // write batches here
-        .updatedWith(inbox)       // update inbox status
-        .on(bus)                  // emit ItemPersisted events
+        .from(eventBus)
+        .storesWith(dataLakeWriter)
+        .readWith(inboxEnvelopeResolver)
+        .on(eventBus)
         .create();
 
-// 3. Start and stop
-ingester.startIngestion();
-// ... events flow through the pipeline ...
-ingester.stopIngestion();
+SpoolNode node = SpoolNode.create()
+        .register(ingester);
+
+node.start();
 ```
 
 ---
@@ -131,17 +99,15 @@ ingester.stopIngestion();
 
 ### Reactive (Immediate) Ingestion
 
-Every `ItemPublished` event is flushed to the data lake immediately, with no buffering.
+Every event triggers an immediate write to the data lake. No buffering.
 
 ```java
 Ingester ingester = IngesterBuilderFactory.reactive()
-        .from(eventBusListener)
-        .storesWith(myDataLakeWriter)
-        .updatedWith(inboxUpdater)
-        .on(eventBusEmitter)
+        .from(eventBus)
+        .storesWith(dataLakeWriter)
+        .readWith(inboxEnvelopeResolver)
+        .on(eventBus)
         .create();
-
-ingester.startIngestion();
 ```
 
 ---
@@ -152,154 +118,133 @@ Flush the buffer when it accumulates 50 items.
 
 ```java
 Ingester ingester = IngesterBuilderFactory.buffered()
-        .from(eventBusListener)
-        .storesWith(myDataLakeWriter)
-        .updatedWith(inboxUpdater)
-        .on(eventBusEmitter)
-        .flushWith(FlushPolicy.whenReaches(50))
+        .from(eventBus)
+        .storesWith(dataLakeWriter)
+        .readWith(inboxEnvelopeResolver)
+        .on(eventBus)
+        .flushPolicy(FlushPolicy.whenReaches(50))
         .create();
-
-ingester.startIngestion();
 ```
 
 ---
 
 ### Time-based Flush Policy
 
-Flush the buffer every 10 seconds regardless of how many items are buffered.
+Flush every 10 seconds regardless of how many items are buffered.
 
 ```java
 Ingester ingester = IngesterBuilderFactory.buffered()
-        .from(eventBusListener)
-        .storesWith(myDataLakeWriter)
-        .updatedWith(inboxUpdater)
-        .on(eventBusEmitter)
-        .flushWith(FlushPolicy.every(Duration.ofSeconds(10)))
+        .from(eventBus)
+        .storesWith(dataLakeWriter)
+        .readWith(inboxEnvelopeResolver)
+        .on(eventBus)
+        .flushPolicy(FlushPolicy.every(Duration.ofSeconds(10)))
         .create();
-
-ingester.startIngestion();
 ```
 
 ---
 
 ### Combined Flush Policy
 
-Flush when the buffer reaches 200 items **or** every 30 seconds, whichever comes first.
+Flush at 200 items **or** every 30 seconds, whichever comes first.
 
 ```java
-FlushPolicy policy = FlushPolicy.whenReaches(200).orEvery(Duration.ofSeconds(30));
-
 Ingester ingester = IngesterBuilderFactory.buffered()
-        .from(eventBusListener)
-        .storesWith(myDataLakeWriter)
-        .updatedWith(inboxUpdater)
-        .on(eventBusEmitter)
-        .flushWith(policy)
+        .from(eventBus)
+        .storesWith(dataLakeWriter)
+        .readWith(inboxEnvelopeResolver)
+        .on(eventBus)
+        .flushPolicy(FlushPolicy.whenReaches(200).orEvery(Duration.ofSeconds(30)))
         .create();
-
-ingester.startIngestion();
 ```
 
 ---
 
 ### Custom DataLakeWriter (S3)
 
-Implement `DataLakeWriter` to persist batches to any storage backend.
+Implement `DataLakeWriter` to write batches to any storage backend. The method returns the keys of successfully written envelopes.
 
 ```java
 public class S3DataLakeWriter implements DataLakeWriter {
     private final S3Client s3;
     private final String bucket;
 
-    public S3DataLakeWriter(S3Client s3, String bucket) {
-        this.s3 = s3;
-        this.bucket = bucket;
-    }
-
     @Override
-    public <E extends Event> void write(Collection<E> items) {
+    public Stream<IdempotencyKey> write(Collection<Envelope> items) {
         String json = objectMapper.writeValueAsString(items);
         String key = "ingested/" + Instant.now().toEpochMilli() + ".json";
         s3.putObject(
                 PutObjectRequest.builder().bucket(bucket).key(key).build(),
                 RequestBody.fromString(json)
         );
+        return items.stream().map(Envelope::idempotencyKey);
     }
 }
 
 Ingester ingester = IngesterBuilderFactory.buffered()
-        .from(eventBusListener)
+        .from(eventBus)
         .storesWith(new S3DataLakeWriter(s3Client, "my-data-lake"))
-        .updatedWith(inboxUpdater)
-        .on(eventBusEmitter)
-        .flushWith(FlushPolicy.whenReaches(500).orEvery(Duration.ofMinutes(1)))
+        .readWith(inboxEnvelopeResolver)
+        .on(eventBus)
+        .flushPolicy(FlushPolicy.whenReaches(500).orEvery(Duration.ofMinutes(1)))
         .create();
-
-ingester.startIngestion();
 ```
 
 ---
 
-### Custom Error Routing
+### Quarantine Store
 
-Override the default error routing to add logging or custom recovery.
+Provide a `QuarantineStore` to capture envelopes that fail validation instead of discarding them.
 
 ```java
-ErrorRouter customRouter = IngesterErrorRouter.defaults(eventBusEmitter);
-
-// Or build your own:
-ErrorRouter customRouter = new ErrorRouter()
-        .on(DataLakeWriteException.class, (e, cause) -> {
-            logger.error("Data lake write failed: {}", e.getMessage());
-            eventBusEmitter.emit(DataLakePersistFailed.builder()
-                    .errorMessage(e.getMessage()).build());
-        });
+Ingester ingester = IngesterBuilderFactory.buffered()
+        .from(eventBus)
+        .storesWith(dataLakeWriter)
+        .readWith(inboxEnvelopeResolver)
+        .on(eventBus)
+        .quarantineStore(quarantinedRecord ->
+                deadLetterQueue.send(quarantinedRecord))
+        .create();
 ```
 
 ---
 
-## API Reference
+### Watchdog Integration
 
-### Builder DSL
+```java
+Ingester ingester = IngesterBuilderFactory
+        .watchdog("http://spool-watchdog:8080", "my-ingester")
+        .buffered()
+        .from(eventBus)
+        .storesWith(dataLakeWriter)
+        .readWith(inboxEnvelopeResolver)
+        .on(eventBus)
+        .create();
+```
 
-| Step | Method | Description |
-|---|---|---|
-| Entry point | `IngesterBuilderFactory.reactive()` | Start with immediate flush policy. |
-| Entry point | `IngesterBuilderFactory.buffered()` | Start with buffered flush policy (100 items / 60s). |
-| Listener | `.from(eventBusListener)` | Set the event bus to subscribe to. |
-| Writer | `.storesWith(dataLakeWriter)` | Set the data lake writer. |
-| Updater | `.updatedWith(inboxUpdater)` | Set the inbox updater. |
-| Emitter | `.on(eventBusEmitter)` | Set the event bus to emit events on. |
-| Policy | `.flushWith(flushPolicy)` | Override the flush policy. |
-| Create | `.create()` | Return the configured `Ingester`. |
+---
 
-### Ingester Lifecycle
+## Key Concepts
 
-| Method | Description |
+| Concept | Description |
 |---|---|
-| `startIngestion()` | Subscribe to `ItemPublished` events and start the flush scheduler. |
-| `stopIngestion()` | Cancel the subscription and shut down the flush scheduler. |
+| **`Ingester`** | Main module implementing `SpoolModule`. Lifecycle via `SpoolNode`. |
+| **`IngesterBuilderFactory`** | DSL entry point with `reactive()` and `buffered()` presets. |
+| **`DataLakeWriter`** | Interface you implement to persist batches. Returns successfully written keys. |
+| **`InboxEnvelopeResolver`** | Resolves full `Envelope` records by id for the batch. |
+| **`FlushPolicy`** | Rules for when to flush the buffer. |
+| **`QuarantineStore`** | Optional sink for envelopes that fail validation. |
 
 ---
 
 ## Flush Policies
 
-| Factory Method | Behavior |
+| Factory Method | Behaviour |
 |---|---|
-| `FlushPolicy.immediate()` | Flush on every single item (buffer limit = 1). |
+| `FlushPolicy.immediate()` | Flush on every single item. |
 | `FlushPolicy.whenReaches(n)` | Flush when the buffer accumulates `n` items. |
 | `FlushPolicy.every(duration)` | Flush at fixed time intervals. |
-| `policy.orEvery(duration)` | Combine a size-based policy with a time interval (composite). |
-
----
-
-## Event Model
-
-| Event | When Emitted |
-|---|---|
-| `ItemPublished` | _Consumed_ — received from the event bus, triggers ingestion. |
-| `ItemPersisted` | After a batch is successfully written to the data lake. |
-| `DataLakePersistFailed` | When `DataLakeWriter.write()` throws an exception. |
+| `policy.orEvery(duration)` | Combine a size-based policy with a time interval. |
 
 ---
 

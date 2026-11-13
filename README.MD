@@ -43,8 +43,8 @@ EventBus ──► (event received) ──► Buffer
                                      │
                               ┌──────┴──────┐
                               ▼             ▼
-                        QuarantineStore  EventPublisher
-                        (on failure)     (ItemPersisted)
+                   EventPublisher   EventPublisher
+              (EnvelopeQuarantined) (ItemPersisted)
 
 Errors ──► ErrorRouter ──► failure event
 ```
@@ -192,20 +192,9 @@ Ingester ingester = IngesterBuilderFactory.buffered()
 
 ---
 
-### Quarantine Store
+### Quarantine
 
-Provide a `QuarantineStore` to capture envelopes that fail validation instead of discarding them.
-
-```java
-Ingester ingester = IngesterBuilderFactory.buffered()
-        .from(eventBus)
-        .storesWith(dataLakeWriter)
-        .readWith(inboxEnvelopeResolver)
-        .on(eventBus)
-        .quarantineStore(quarantinedRecord ->
-                deadLetterQueue.send(quarantinedRecord))
-        .create();
-```
+An envelope that fails a critical validation is not persisted: the ingester publishes `EnvelopeQuarantined` with its key, the reason `VALIDATION_FAILED` and the violations. The janitor moves it to quarantine and keeps its record, so the ingester needs no quarantine configuration.
 
 ---
 
@@ -233,7 +222,6 @@ Ingester ingester = IngesterBuilderFactory
 | **`DataLakeWriter`** | Interface you implement to persist batches. Returns successfully written keys. |
 | **`InboxEnvelopeResolver`** | Resolves full `Envelope` records by id for the batch. |
 | **`FlushPolicy`** | Rules for when to flush the buffer. |
-| **`QuarantineStore`** | Optional sink for envelopes that fail validation. |
 
 ---
 

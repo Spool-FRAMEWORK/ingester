@@ -1,24 +1,20 @@
 package software.spool.ingester.internal.control.steps;
 
 import software.spool.core.model.failure.EnvelopeQuarantined;
+import software.spool.core.model.quarantine.QuarantineReason;
 import software.spool.core.pipeline.PipelineContext;
 import software.spool.core.pipeline.Step;
 import software.spool.core.port.bus.EventPublisher;
 import software.spool.core.utils.routing.ErrorRouter;
-import software.spool.ingester.api.port.QuarantineStore;
-import software.spool.ingester.api.port.QuarantinedRecord;
 
 import javax.management.AttributeNotFoundException;
-import java.time.Instant;
 
 public class QuarantineStep implements Step<PipelineContext, PipelineContext> {
 
-    private final QuarantineStore quarantineStore;
     private final EventPublisher publisher;
     private final ErrorRouter errorRouter;
 
-    public QuarantineStep(QuarantineStore quarantineStore, EventPublisher publisher, ErrorRouter errorRouter) {
-        this.quarantineStore = quarantineStore;
+    public QuarantineStep(EventPublisher publisher, ErrorRouter errorRouter) {
         this.publisher = publisher;
         this.errorRouter = errorRouter;
     }
@@ -31,12 +27,12 @@ public class QuarantineStep implements Step<PipelineContext, PipelineContext> {
 
     private void process(QuarantineCandidate candidate) {
         try {
-            quarantineStore.send(new QuarantinedRecord(candidate.context().payload(), candidate.violations(), Instant.now()));
-            EnvelopeQuarantined event = EnvelopeQuarantined.builder()
+            publisher.publish(EnvelopeQuarantined.builder()
                     .from(candidate.context().event())
+                    .idempotencyKey(candidate.context().idempotencyKey())
+                    .reason(QuarantineReason.VALIDATION_FAILED)
                     .violations(candidate.violations())
-                    .build();
-            publisher.publish(event);
+                    .build());
         } catch (Exception e) {
             errorRouter.dispatch(e);
         }

@@ -13,7 +13,6 @@ import software.spool.core.port.watchdog.ModuleHeartBeat;
 import software.spool.core.utils.polling.PollingConfiguration;
 import software.spool.ingester.api.Ingester;
 import software.spool.ingester.api.port.DataLakeWriter;
-import software.spool.ingester.api.port.QuarantineStore;
 import software.spool.ingester.api.utils.IngesterErrorRouter;
 import software.spool.ingester.internal.control.EnvelopeStoredHandler;
 import software.spool.ingester.internal.control.ItemValidator;
@@ -33,7 +32,6 @@ public class IngesterBuilder {
     private InboxEnvelopeResolver reader;
     private EventPublisher publisher;
     private FlushPolicy flushPolicy;
-    private QuarantineStore quarantineStore;
     private final PollingConfiguration pollingConfiguration;
 
     IngesterBuilder(ModuleHeartBeat heartBeat) {
@@ -43,11 +41,6 @@ public class IngesterBuilder {
 
     public IngesterBuilder flushPolicy(FlushPolicy flushPolicy) {
         this.flushPolicy = flushPolicy;
-        return this;
-    }
-
-    public IngesterBuilder quarantineStore(QuarantineStore store) {
-        this.quarantineStore = store;
         return this;
     }
 
@@ -77,7 +70,7 @@ public class IngesterBuilder {
         MetricsRegistry.CounterMetric recordsRejected = metrics.counter(SpoolMetrics.Ingester.RECORDS_REJECTED_TOTAL, SpoolMetrics.Ingester.RECORDS_REJECTED_TOTAL_DESC, "1");
         MetricsRegistry.TimerMetric processingTimer = metrics.timer(SpoolMetrics.Ingester.PROCESSING_DURATION, SpoolMetrics.Ingester.PROCESSING_DURATION_DESC, "s");
         ItemValidator validator = new ItemValidator(new ValidatorRegistry());
-        EnvelopeStoredHandler handler = new EnvelopeStoredHandler(writer, Objects.requireNonNull(reader, "InboxReader required"), publisher, validator, Objects.requireNonNull(quarantineStore, "QuarantineStore required"), IngesterErrorRouter.defaults(publisher), recordsTotal, recordsRejected, processingTimer);
+        EnvelopeStoredHandler handler = new EnvelopeStoredHandler(writer, Objects.requireNonNull(reader, "InboxReader required"), publisher, validator, IngesterErrorRouter.defaults(publisher), recordsTotal, recordsRejected, processingTimer);
         FlushCoordinator flushCoordinator = new FlushCoordinator(new Buffer(), flushPolicy, handler);
         return new Ingester(listener, pollingConfiguration, flushCoordinator, heartBeat, IngesterErrorRouter.defaults(publisher));
     }

@@ -12,7 +12,6 @@ import software.spool.core.port.metrics.MetricsRegistry;
 import software.spool.core.port.metrics.SpoolMetrics;
 import software.spool.core.utils.routing.ErrorRouter;
 import software.spool.ingester.api.port.DataLakeWriter;
-import software.spool.ingester.api.port.QuarantineStore;
 import software.spool.ingester.internal.control.steps.*;
 
 import java.util.Collection;
@@ -28,7 +27,6 @@ public class EnvelopeStoredHandler implements Handler<Collection<EnvelopeStored>
                                  InboxEnvelopeResolver reader,
                                  EventPublisher publisher,
                                  ItemValidator validator,
-                                 QuarantineStore quarantineStore,
                                  ErrorRouter errorRouter,
                                  MetricsRegistry.CounterMetric recordsTotal,
                                  MetricsRegistry.CounterMetric recordsRejected,
@@ -39,7 +37,7 @@ public class EnvelopeStoredHandler implements Handler<Collection<EnvelopeStored>
         this.pipeline = Pipeline.<PipelineContext>start()
                 .add(new ObservedStep<>("resolve-envelopes", new ResolveEnvelopesStep(reader)))
                 .add(new ObservedStep<>("partition-envelopes", new PartitionEnvelopesStep(validator, recordsRejected)))
-                .add(new ObservedStep<>("quarantine", new QuarantineStep(quarantineStore, publisher, errorRouter)))
+                .add(new ObservedStep<>("quarantine", new QuarantineStep(publisher, errorRouter)))
                 .add(new ObservedStep<>("persist-and-emit", new PersistAndEmitStep(dataLakeWriter, publisher, errorRouter)));
     }
 

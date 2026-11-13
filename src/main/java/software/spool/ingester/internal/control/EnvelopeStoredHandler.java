@@ -11,6 +11,7 @@ import software.spool.core.port.inbox.InboxEnvelopeResolver;
 import software.spool.core.port.metrics.MetricsRegistry;
 import software.spool.core.port.metrics.SpoolMetrics;
 import software.spool.core.utils.routing.ErrorRouter;
+import software.spool.validator.api.EnvelopeValidator;
 import software.spool.ingester.api.port.DataLakeWriter;
 import software.spool.ingester.internal.control.steps.*;
 
@@ -26,7 +27,7 @@ public class EnvelopeStoredHandler implements Handler<Collection<EnvelopeStored>
     public EnvelopeStoredHandler(DataLakeWriter dataLakeWriter,
                                  InboxEnvelopeResolver reader,
                                  EventPublisher publisher,
-                                 ItemValidator validator,
+                                 EnvelopeValidator validator,
                                  ErrorRouter errorRouter,
                                  MetricsRegistry.CounterMetric recordsTotal,
                                  MetricsRegistry.CounterMetric recordsRejected,

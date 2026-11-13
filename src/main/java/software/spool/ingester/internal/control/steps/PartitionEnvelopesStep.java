@@ -4,7 +4,7 @@ import software.spool.core.pipeline.PipelineContext;
 import software.spool.core.pipeline.Step;
 import software.spool.core.port.metrics.MetricsRegistry;
 import software.spool.core.port.metrics.SpoolMetrics;
-import software.spool.ingester.internal.control.ItemValidator;
+import software.spool.validator.api.EnvelopeValidator;
 import software.spool.ingester.internal.model.EnvelopeStoredContext;
 import software.spool.validator.api.ValidationResult;
 
@@ -16,10 +16,10 @@ import java.util.Map;
 
 public class PartitionEnvelopesStep implements Step<PipelineContext, PipelineContext> {
 
-    private final ItemValidator validator;
+    private final EnvelopeValidator validator;
     private final MetricsRegistry.CounterMetric recordsRejected;
 
-    public PartitionEnvelopesStep(ItemValidator validator, MetricsRegistry.CounterMetric recordsRejected) {
+    public PartitionEnvelopesStep(EnvelopeValidator validator, MetricsRegistry.CounterMetric recordsRejected) {
         this.validator = validator;
         this.recordsRejected = recordsRejected;
     }
@@ -40,7 +40,7 @@ public class PartitionEnvelopesStep implements Step<PipelineContext, PipelineCon
         });
 
         if (!quarantine.isEmpty()) {
-            recordsRejected.add(quarantine.size(), Map.of(SpoolMetrics.Attributes.REASON, "invalid"));
+            recordsRejected.add(quarantine.size(), Map.of(SpoolMetrics.Attributes.REASON, "invalid", SpoolMetrics.Attributes.MODULE, "ingester"));
         }
         return ctx.with(EnvelopePipelineKeys.VALID_CONTEXTS, valid).with(EnvelopePipelineKeys.QUARANTINE_CANDIDATES, quarantine);
     }

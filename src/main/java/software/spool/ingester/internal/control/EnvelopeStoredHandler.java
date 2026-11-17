@@ -1,5 +1,6 @@
 package software.spool.ingester.internal.control;
 
+import software.spool.core.adapter.logging.LoggerFactory;
 import software.spool.core.exception.SpoolException;
 import software.spool.core.model.event.EnvelopeStored;
 import software.spool.core.pipeline.ObservedStep;
@@ -32,13 +33,14 @@ public class EnvelopeStoredHandler implements Handler<Collection<EnvelopeStored>
                                  ErrorRouter errorRouter,
                                  MetricsRegistry.CounterMetric recordsTotal,
                                  MetricsRegistry.CounterMetric recordsRejected,
+                                 MetricsRegistry.CounterMetric validationWarnings,
                                  MetricsRegistry.TimerMetric processingTimer) {
         this.errorRouter = errorRouter;
         this.recordsTotal = recordsTotal;
         this.processingTimer = processingTimer;
         this.pipeline = Pipeline.<PipelineContext>start()
                 .add(new ObservedStep<>("resolve-envelopes", new ResolveEnvelopesStep(reader)))
-                .add(new ObservedStep<>("partition-envelopes", new PartitionEnvelopesStep(validator, recordsRejected)))
+                .add(new ObservedStep<>("partition-envelopes", new PartitionEnvelopesStep(validator, recordsRejected, validationWarnings, LoggerFactory.getLogger(PartitionEnvelopesStep.class))))
                 .add(new ObservedStep<>("quarantine", new QuarantineStep(publisher, errorRouter)))
                 .add(new ObservedStep<>("persist-and-emit", new PersistAndEmitStep(dataLakeWriter, publisher, errorRouter, new MetadataSchemaPartitioner())));
     }

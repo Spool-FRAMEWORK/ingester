@@ -14,6 +14,7 @@ import software.spool.core.utils.routing.ErrorRouter;
 import software.spool.validator.api.EnvelopeValidator;
 import software.spool.ingester.api.port.DataLakeWriter;
 import software.spool.ingester.internal.control.steps.*;
+import software.spool.ingester.internal.utils.MetadataSchemaPartitioner;
 
 import java.util.Collection;
 import java.util.Map;
@@ -39,7 +40,7 @@ public class EnvelopeStoredHandler implements Handler<Collection<EnvelopeStored>
                 .add(new ObservedStep<>("resolve-envelopes", new ResolveEnvelopesStep(reader)))
                 .add(new ObservedStep<>("partition-envelopes", new PartitionEnvelopesStep(validator, recordsRejected)))
                 .add(new ObservedStep<>("quarantine", new QuarantineStep(publisher, errorRouter)))
-                .add(new ObservedStep<>("persist-and-emit", new PersistAndEmitStep(dataLakeWriter, publisher, errorRouter)));
+                .add(new ObservedStep<>("persist-and-emit", new PersistAndEmitStep(dataLakeWriter, publisher, errorRouter, new MetadataSchemaPartitioner())));
     }
 
     @Override

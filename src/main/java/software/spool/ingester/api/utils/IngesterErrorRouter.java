@@ -7,7 +7,7 @@ import software.spool.core.model.SpoolFailedEvent;
 import software.spool.core.model.failure.DataLakePersistFailed;
 import software.spool.core.port.bus.EventPublisher;
 import software.spool.core.utils.routing.ErrorRouter;
-import software.spool.ingester.internal.exception.DataLakeWriteException;
+import software.spool.core.exception.DataLakeWriteException;
 
 public class IngesterErrorRouter {
 

@@ -1,10 +1,10 @@
 package software.spool.ingester.internal.decorator;
 
 import software.spool.core.exception.SpoolException;
-import software.spool.ingester.api.port.PartitionedEnvelope;
+import software.spool.core.model.vo.PartitionedEnvelope;
 import software.spool.core.model.vo.IdempotencyKey;
-import software.spool.ingester.api.port.DataLakeWriter;
-import software.spool.ingester.internal.exception.DataLakeWriteException;
+import software.spool.core.port.datalake.DataLakeWriter;
+import software.spool.core.exception.DataLakeWriteException;
 
 import java.util.Collection;
 import java.util.stream.Stream;

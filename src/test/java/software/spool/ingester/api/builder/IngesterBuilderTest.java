@@ -5,7 +5,7 @@ import software.spool.core.port.bus.EventPublisher;
 import software.spool.core.port.bus.EventSubscriber;
 import software.spool.core.port.inbox.InboxEnvelopeResolver;
 import software.spool.ingester.api.Ingester;
-import software.spool.ingester.api.port.DataLakeWriter;
+import software.spool.core.port.datalake.DataLakeWriter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

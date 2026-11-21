@@ -13,7 +13,7 @@ import software.spool.core.port.metrics.MetricsRegistry;
 import software.spool.core.port.metrics.SpoolMetrics;
 import software.spool.core.utils.routing.ErrorRouter;
 import software.spool.validator.api.EnvelopeValidator;
-import software.spool.ingester.api.port.DataLakeWriter;
+import software.spool.core.port.datalake.DataLakeWriter;
 import software.spool.ingester.internal.control.steps.*;
 import software.spool.ingester.internal.utils.MetadataSchemaPartitioner;
 

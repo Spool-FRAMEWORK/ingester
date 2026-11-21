@@ -12,7 +12,7 @@ import software.spool.core.port.metrics.SpoolMetrics;
 import software.spool.core.port.watchdog.ModuleHeartBeat;
 import software.spool.core.utils.polling.PollingConfiguration;
 import software.spool.ingester.api.Ingester;
-import software.spool.ingester.api.port.DataLakeWriter;
+import software.spool.core.port.datalake.DataLakeWriter;
 import software.spool.ingester.api.utils.IngesterErrorRouter;
 import software.spool.ingester.internal.control.EnvelopeStoredHandler;
 import software.spool.ingester.internal.decorator.SafeDataLakeWriter;

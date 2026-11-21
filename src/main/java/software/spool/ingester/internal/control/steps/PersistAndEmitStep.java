@@ -6,8 +6,8 @@ import software.spool.core.pipeline.PipelineContext;
 import software.spool.core.pipeline.Step;
 import software.spool.core.port.bus.EventPublisher;
 import software.spool.core.utils.routing.ErrorRouter;
-import software.spool.ingester.api.port.DataLakeWriter;
-import software.spool.ingester.api.port.PartitionedEnvelope;
+import software.spool.core.port.datalake.DataLakeWriter;
+import software.spool.core.model.vo.PartitionedEnvelope;
 import software.spool.ingester.internal.model.EnvelopeStoredContext;
 import software.spool.ingester.internal.utils.EnvelopePartitioner;
 

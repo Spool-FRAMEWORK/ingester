@@ -196,6 +196,19 @@ Ingester ingester = IngesterBuilderFactory.buffered()
 
 An envelope that fails a critical validation is not persisted: the ingester publishes `EnvelopeQuarantined` with its key, the reason `VALIDATION_FAILED` and the violations. The janitor moves it to quarantine and keeps its record, so the ingester needs no quarantine configuration.
 
+### Envelopes announced more than once
+
+The ingester writes each envelope once while it remembers its key. An envelope announced again while it waits in
+the batch is kept once, and one announced again after it was written is not written again, but its
+`EnvelopePersisted` is published again. The keys are remembered for 10 minutes by default, in the memory of the
+process, and an envelope sent to quarantine is never remembered
+([ADR-007](https://linear.app/javier-castilla/document/adr-007-cada-consumidor-recuerda-las-claves-que-ya-ha-procesado-3544b675ef87)).
+
+```java
+IngesterBuilderFactory.buffered()
+        .rememberProcessedKeysFor(Duration.ofHours(1))   // or .rememberProcessedKeysIn(processedKeyRepository)
+```
+
 ---
 
 ### Watchdog Integration

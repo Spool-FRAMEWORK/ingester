@@ -1,6 +1,8 @@
 package software.spool.ingester.api.builder;
 
+import software.spool.core.adapter.memory.InMemoryProcessedKeyRepository;
 import software.spool.core.adapter.otel.OpenTelemetryMetricsRegistry;
+import software.spool.core.port.idempotency.ProcessedKeyRepository;
 import software.spool.core.port.bus.EventPublisher;
 import software.spool.core.port.bus.EventSubscriber;
 import software.spool.core.port.decorator.SafeEventPublisher;
@@ -15,6 +17,7 @@ import software.spool.ingester.api.Ingester;
 import software.spool.core.port.datalake.DataLakeWriter;
 import software.spool.ingester.api.utils.IngesterErrorRouter;
 import software.spool.ingester.internal.control.EnvelopeStoredHandler;
+import software.spool.ingester.internal.decorator.RememberingDataLakeWriter;
 import software.spool.ingester.internal.decorator.SafeDataLakeWriter;
 import software.spool.ingester.internal.utils.Buffer;
 import software.spool.ingester.internal.utils.FlushCoordinator;
@@ -22,8 +25,10 @@ import software.spool.ingester.internal.utils.FlushPolicy;
 import software.spool.validator.api.EnvelopeValidator;
 import software.spool.validator.engine.ValidatorRegistry;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.Optional;
 
 public class IngesterBuilder {
     private final ModuleHeartBeat heartBeat;
@@ -32,7 +37,10 @@ public class IngesterBuilder {
     private InboxEnvelopeResolver reader;
     private EventPublisher publisher;
     private FlushPolicy flushPolicy;
-    private final PollingConfiguration pollingConfiguration;
+    private PollingConfiguration pollingConfiguration;
+    private Clock clock = Clock.systemUTC();
+    private Duration processedKeysWindow = InMemoryProcessedKeyRepository.DEFAULT_WINDOW;
+    private Optional<ProcessedKeyRepository> processedKeys = Optional.empty();
 
     IngesterBuilder(ModuleHeartBeat heartBeat) {
         this.heartBeat = heartBeat;
@@ -64,6 +72,31 @@ public class IngesterBuilder {
         return this;
     }
 
+    /**
+     * How long the ingester remembers the keys it wrote, so it does not write them again (ADR-007).
+     * {@link InMemoryProcessedKeyRepository#DEFAULT_WINDOW} by default.
+     */
+    public IngesterBuilder rememberProcessedKeysFor(Duration window) {
+        this.processedKeysWindow = Objects.requireNonNull(window);
+        return this;
+    }
+
+    /** Where the ingester remembers the keys it wrote; in the memory of the process by default. */
+    public IngesterBuilder rememberProcessedKeysIn(ProcessedKeyRepository processedKeys) {
+        this.processedKeys = Optional.of(processedKeys);
+        return this;
+    }
+
+    IngesterBuilder clock(Clock clock) {
+        this.clock = Objects.requireNonNull(clock);
+        return this;
+    }
+
+    IngesterBuilder polling(PollingConfiguration pollingConfiguration) {
+        this.pollingConfiguration = Objects.requireNonNull(pollingConfiguration);
+        return this;
+    }
+
     public Ingester create() {
         MetricsRegistry metrics = new OpenTelemetryMetricsRegistry();
         MetricsRegistry.CounterMetric recordsTotal = metrics.counter(SpoolMetrics.Ingester.RECORDS_TOTAL, SpoolMetrics.Ingester.RECORDS_TOTAL_DESC, "1");
@@ -71,8 +104,10 @@ public class IngesterBuilder {
         MetricsRegistry.CounterMetric validationWarnings = metrics.counter(SpoolMetrics.Validation.WARNINGS_TOTAL, SpoolMetrics.Validation.WARNINGS_TOTAL_DESC, "1");
         MetricsRegistry.TimerMetric processingTimer = metrics.timer(SpoolMetrics.Ingester.PROCESSING_DURATION, SpoolMetrics.Ingester.PROCESSING_DURATION_DESC, "s");
         EnvelopeValidator validator = new EnvelopeValidator(new ValidatorRegistry());
-        EnvelopeStoredHandler handler = new EnvelopeStoredHandler(writer, Objects.requireNonNull(reader, "InboxReader required"), publisher, validator, IngesterErrorRouter.defaults(publisher), recordsTotal, recordsRejected, validationWarnings, processingTimer);
-        FlushCoordinator flushCoordinator = new FlushCoordinator(new Buffer(), flushPolicy, handler);
+        DataLakeWriter rememberingWriter = new RememberingDataLakeWriter(writer,
+                processedKeys.orElseGet(() -> new InMemoryProcessedKeyRepository(processedKeysWindow, clock)));
+        EnvelopeStoredHandler handler = new EnvelopeStoredHandler(rememberingWriter, Objects.requireNonNull(reader, "InboxReader required"), publisher, validator, IngesterErrorRouter.defaults(publisher), recordsTotal, recordsRejected, validationWarnings, processingTimer);
+        FlushCoordinator flushCoordinator = new FlushCoordinator(new Buffer(), flushPolicy, handler, clock);
         return new Ingester(listener, pollingConfiguration, flushCoordinator, heartBeat, IngesterErrorRouter.defaults(publisher));
     }
 }

@@ -1,21 +1,22 @@
 package software.spool.ingester.internal.utils;
 
 import software.spool.core.model.event.EnvelopeStored;
+import software.spool.core.model.vo.IdempotencyKey;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
+/**
+ * The envelopes announced since the last flush, one per idempotency key: an envelope announced again while it waits
+ * keeps its first announcement.
+ */
 public class Buffer {
-    private final List<EnvelopeStored> items = new ArrayList<>();
+    private final Map<IdempotencyKey, EnvelopeStored> items = new LinkedHashMap<>();
 
-    /**
-     * Adds an envelopeStored to the buffer.
-     *
-     * @param envelopeStored the event to buffer; must not be {@code null}
-     */
     public synchronized void add(EnvelopeStored envelopeStored) {
-        items.add(envelopeStored);
+        items.putIfAbsent(envelopeStored.idempotencyKey(), envelopeStored);
     }
 
     /**
@@ -27,16 +28,11 @@ public class Buffer {
     public synchronized Collection<EnvelopeStored> drain() {
         if (items.isEmpty())
             return List.of();
-        List<EnvelopeStored> snapshot = List.copyOf(items);
+        List<EnvelopeStored> snapshot = List.copyOf(items.values());
         items.clear();
         return snapshot;
     }
 
-    /**
-     * Returns the current number of items in the buffer.
-     *
-     * @return the buffer size
-     */
     public synchronized int size() {
         return items.size();
     }

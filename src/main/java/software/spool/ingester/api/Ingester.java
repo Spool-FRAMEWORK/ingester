@@ -5,6 +5,7 @@ import software.spool.core.model.event.EnvelopeStored;
 import software.spool.core.model.spool.SpoolModule;
 import software.spool.core.model.spool.SpoolNode;
 import software.spool.core.port.bus.EventSubscriber;
+import software.spool.core.port.bus.Subscription;
 import software.spool.core.port.health.ModuleHealthPayload;
 import software.spool.core.port.inbox.InboxUpdater;
 import software.spool.core.port.watchdog.ModuleHeartBeat;
@@ -54,6 +55,7 @@ public class Ingester implements SpoolModule {
     private final PollingConfiguration pollingConfiguration;
     private final ErrorRouter errorRouter;
     private volatile CancellationToken token;
+    private volatile Subscription subscription = Subscription.NULL;
 
 
     /**
@@ -90,7 +92,7 @@ public class Ingester implements SpoolModule {
         Objects.requireNonNull(permit);
         token = CancellationToken.create();
         try {
-            subscriber.subscribe(EnvelopeStored.class, e -> {
+            subscription = subscriber.subscribe(EnvelopeStored.class, e -> {
                 if (token.isCancelled()) return;
                 coordinator.submit(e);
             });
@@ -118,6 +120,8 @@ public class Ingester implements SpoolModule {
         Objects.requireNonNull(permit);
         token.cancel();
         token = CancellationToken.NOOP;
+        subscription.cancel();
+        subscription = Subscription.NULL;
         heartBeat.stop();
     }
 

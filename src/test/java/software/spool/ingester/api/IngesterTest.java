@@ -2,6 +2,7 @@ package software.spool.ingester.api;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import software.spool.core.model.schedule.Schedule;
 import software.spool.core.model.spool.SpoolNode;
 import software.spool.core.port.health.HealthStatus;
 import software.spool.core.model.Event;
@@ -10,7 +11,6 @@ import software.spool.core.port.bus.Handler;
 import software.spool.core.port.bus.Subscription;
 import software.spool.core.port.watchdog.ModuleHeartBeat;
 import software.spool.core.utils.polling.PollingConfiguration;
-import software.spool.core.utils.polling.PollingPolicy;
 import software.spool.core.utils.routing.ErrorRouter;
 import software.spool.ingester.internal.utils.Buffer;
 import software.spool.ingester.internal.utils.FlushCoordinator;
@@ -109,7 +109,7 @@ class IngesterTest {
     }
 
     private static PollingConfiguration polling() {
-        return new PollingConfiguration((task, policy, token) -> {}, PollingPolicy.ONCE);
+        return new PollingConfiguration((task, schedule, token) -> {}, Schedule.once());
     }
 
     private static FlushCoordinator coordinator() {

@@ -93,7 +93,7 @@ public class Ingester implements SpoolModule {
             });
             pollingConfiguration.scheduler().schedule(
                     coordinator::flushIfNeeded,
-                    pollingConfiguration.policy(),
+                    pollingConfiguration.schedule(),
                     token
             );
             heartBeat.start();

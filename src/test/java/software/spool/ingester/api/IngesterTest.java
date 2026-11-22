@@ -77,6 +77,7 @@ class IngesterTest {
         );
 
         assertThat(ingester.checkHealth().status()).isEqualTo(HealthStatus.DEGRADED);
+        assertThat(ingester.checkHealth().checks()).isNotNull().isEmpty();
     }
 
     @Test

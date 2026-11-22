@@ -12,6 +12,7 @@ import software.spool.core.utils.polling.PollingConfiguration;
 import software.spool.core.utils.routing.ErrorRouter;
 import software.spool.ingester.internal.utils.FlushCoordinator;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -120,6 +121,6 @@ public class Ingester implements SpoolModule {
 
     @Override
     public ModuleHealthPayload checkHealth() {
-        return token.isActive() ? ModuleHealthPayload.healthy(heartBeat.identity().moduleId()) : ModuleHealthPayload.degraded(heartBeat.identity().moduleId(), null);
+        return token.isActive() ? ModuleHealthPayload.healthy(heartBeat.identity().moduleId()) : ModuleHealthPayload.degraded(heartBeat.identity().moduleId(), List.of());
     }
 }

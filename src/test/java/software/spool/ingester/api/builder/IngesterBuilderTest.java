@@ -32,6 +32,16 @@ class IngesterBuilderTest {
                 .hasMessage("InboxReader required");
     }
 
+    @Test
+    void withoutAWatchdog_ingesterStillReportsTheGivenModuleId() {
+        assertThat(IngesterBuilderFactory.watchdog(null, "ingester-test").reactive()
+                .from(mock(EventSubscriber.class))
+                .storesWith(mock(DataLakeWriter.class))
+                .readWith(mock(InboxEnvelopeResolver.class))
+                .on(mock(EventPublisher.class))
+                .create().checkHealth().moduleId()).isEqualTo("ingester-test");
+    }
+
     private static IngesterBuilder builder() {
         return IngesterBuilderFactory.reactive()
                 .from(mock(EventSubscriber.class))

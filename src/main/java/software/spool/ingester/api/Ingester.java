@@ -1,5 +1,6 @@
 package software.spool.ingester.api;
 
+import software.spool.core.port.health.HealthProvider;
 import software.spool.core.model.event.EnvelopeStored;
 import software.spool.core.model.spool.SpoolModule;
 import software.spool.core.model.spool.SpoolNode;
@@ -70,6 +71,7 @@ public class Ingester implements SpoolModule {
         this.coordinator = coordinator;
         this.pollingConfiguration = pollingConfiguration;
         this.heartBeat = heartBeat;
+        heartBeat.reportFrom(this);
         this.errorRouter = errorRouter;
         this.token = CancellationToken.NOOP;
     }
@@ -117,6 +119,11 @@ public class Ingester implements SpoolModule {
         token.cancel();
         token = CancellationToken.NOOP;
         heartBeat.stop();
+    }
+
+    @Override
+    public void reportHealthFrom(HealthProvider health) {
+        heartBeat.reportFrom(health);
     }
 
     @Override

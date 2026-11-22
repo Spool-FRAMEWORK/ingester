@@ -1,5 +1,8 @@
 package software.spool.ingester.api;
 
+import software.spool.core.port.health.ModuleHealthPayload;
+import software.spool.core.port.health.HealthProvider;
+import software.spool.core.model.watchdog.ModuleIdentity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import software.spool.core.model.schedule.Schedule;
@@ -115,5 +118,40 @@ class IngesterTest {
 
     private static FlushCoordinator coordinator() {
         return new FlushCoordinator(new Buffer(), FlushPolicy.whenReaches(100), items -> {});
+    }
+
+    @Test
+    void heartbeat_readsTheHealthOfTheModuleUntilSomethingThatWrapsItTakesOver() {
+        RecordingHeartBeat heartBeat = new RecordingHeartBeat();
+        var module = new Ingester(new EventSubscriber() {
+            @Override public <E extends Event> Subscription subscribe(Class<E> t, Handler<E> h) { return Subscription.NULL; }
+        }, polling(), coordinator(), heartBeat, new ErrorRouter());
+        HealthProvider wrapper = () -> ModuleHealthPayload.healthy("wrapper");
+
+        assertThat(heartBeat.health).isSameAs(module);
+        module.reportHealthFrom(wrapper);
+        assertThat(heartBeat.health).isSameAs(wrapper);
+    }
+
+    private static final class RecordingHeartBeat implements ModuleHeartBeat {
+        private HealthProvider health;
+
+        @Override
+        public ModuleIdentity identity() {
+            return ModuleIdentity.of("module-test");
+        }
+
+        @Override
+        public void reportFrom(HealthProvider health) {
+            this.health = health;
+        }
+
+        @Override
+        public void start() {
+        }
+
+        @Override
+        public void stop() {
+        }
     }
 }

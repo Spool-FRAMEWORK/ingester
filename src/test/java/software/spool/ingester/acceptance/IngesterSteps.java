@@ -5,7 +5,6 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import software.spool.core.adapter.memory.InMemoryEventBus;
 import software.spool.core.adapter.memory.InMemoryInbox;
-import software.spool.core.adapter.memory.InMemoryProcessedKeyRepository;
 import software.spool.core.model.EnvelopeStatus;
 import software.spool.core.model.event.EnvelopePersisted;
 import software.spool.core.model.event.EnvelopeStored;
@@ -36,7 +35,7 @@ public class IngesterSteps {
 
     @Given("an ingester that remembers the keys it wrote for {int} minutes")
     public void anIngesterThatRemembers(int minutes) {
-        ingester = new IngesterRounds(inbox, new InMemoryProcessedKeyRepository(Duration.ofMinutes(minutes), clock), clock);
+        ingester = new IngesterRounds(inbox, Duration.ofMinutes(minutes), clock);
     }
 
     @Given("an ingester listening on the bus")
@@ -141,7 +140,7 @@ public class IngesterSteps {
     }
 
     private IngesterRounds listeningOnTheBus() {
-        return new IngesterRounds(bus, inbox, new InMemoryProcessedKeyRepository(Duration.ofMinutes(10), clock), clock);
+        return new IngesterRounds(bus, inbox, Duration.ofMinutes(10), clock);
     }
 
     private List<IngesterRounds> ingesters() {

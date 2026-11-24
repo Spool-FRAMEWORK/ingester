@@ -3,7 +3,7 @@ package software.spool.ingester.internal.decorator;
 import software.spool.core.model.vo.IdempotencyKey;
 import software.spool.core.model.vo.PartitionedEnvelope;
 import software.spool.core.port.datalake.DataLakeWriter;
-import software.spool.core.port.idempotency.ProcessedKeyRepository;
+import software.spool.core.port.idempotency.ProcessedKeyWindow;
 
 import java.util.Collection;
 import java.util.List;
@@ -18,9 +18,9 @@ import java.util.stream.Stream;
  */
 public class RememberingDataLakeWriter implements DataLakeWriter {
     private final DataLakeWriter writer;
-    private final ProcessedKeyRepository processedKeys;
+    private final ProcessedKeyWindow processedKeys;
 
-    public RememberingDataLakeWriter(DataLakeWriter writer, ProcessedKeyRepository processedKeys) {
+    public RememberingDataLakeWriter(DataLakeWriter writer, ProcessedKeyWindow processedKeys) {
         this.writer = writer;
         this.processedKeys = processedKeys;
     }
@@ -28,11 +28,11 @@ public class RememberingDataLakeWriter implements DataLakeWriter {
     @Override
     public Stream<IdempotencyKey> write(Collection<PartitionedEnvelope> items) {
         Map<Boolean, List<PartitionedEnvelope>> byRemembered = items.stream()
-                .collect(Collectors.partitioningBy(item -> processedKeys.contains(keyOf(item))));
+                .collect(Collectors.partitioningBy(item -> processedKeys.remembers(keyOf(item))));
         List<IdempotencyKey> written = byRemembered.get(false).isEmpty()
                 ? List.of()
                 : writer.write(byRemembered.get(false)).toList();
-        written.forEach(processedKeys::save);
+        written.forEach(processedKeys::remember);
         return Stream.concat(byRemembered.get(true).stream().map(RememberingDataLakeWriter::keyOf), written.stream());
     }
 

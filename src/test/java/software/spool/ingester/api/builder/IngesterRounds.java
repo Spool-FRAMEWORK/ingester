@@ -9,7 +9,6 @@ import software.spool.core.model.vo.PartitionedEnvelope;
 import software.spool.core.adapter.memory.InMemoryEventBus;
 import software.spool.core.port.bus.EventBus;
 import software.spool.core.port.bus.EventPublisher;
-import software.spool.core.port.idempotency.ProcessedKeyRepository;
 import software.spool.core.port.inbox.InboxEnvelopeResolver;
 import software.spool.core.utils.polling.CancellationToken;
 import software.spool.core.utils.polling.PollingConfiguration;
@@ -40,11 +39,11 @@ public final class IngesterRounds {
     private final List<Event> published = new ArrayList<>();
     private final Ingester ingester;
 
-    public IngesterRounds(InboxEnvelopeResolver inbox, ProcessedKeyRepository processedKeys, MovableClock clock) {
-        this(new InMemoryEventBus(), inbox, processedKeys, clock);
+    public IngesterRounds(InboxEnvelopeResolver inbox, Duration processedKeysWindow, MovableClock clock) {
+        this(new InMemoryEventBus(), inbox, processedKeysWindow, clock);
     }
 
-    public IngesterRounds(EventBus bus, InboxEnvelopeResolver inbox, ProcessedKeyRepository processedKeys,
+    public IngesterRounds(EventBus bus, InboxEnvelopeResolver inbox, Duration processedKeysWindow,
                           MovableClock clock) {
         this.bus = bus;
         this.clock = clock;
@@ -58,7 +57,7 @@ public final class IngesterRounds {
                         published.add(event);
                     }
                 })
-                .rememberProcessedKeysIn(processedKeys)
+                .rememberProcessedKeysFor(processedKeysWindow)
                 .clock(clock)
                 .polling(new PollingConfiguration(scheduler, Schedule.every(EVERY)))
                 .create();
